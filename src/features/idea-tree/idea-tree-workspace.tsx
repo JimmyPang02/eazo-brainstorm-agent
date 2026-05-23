@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { AboutYouPanel } from "./about-you-panel";
 import { BrandMark } from "./brand-mark";
+import { SproutMascot, type SproutMascotState } from "./sprout-mascot";
 import { BrainstormAgentResponseSchema } from "./agent-operations";
 import { applyAgentResponseToIdeaTree } from "./apply-agent-operations";
 import {
@@ -222,6 +223,7 @@ export function IdeaTreeWorkspace() {
     return entries;
   }, [runs, state]);
   const canConverge = rootSeeded && !convergeRunning && maxLayer >= CONVERGE_LAYER_THRESHOLD;
+  const mascotState: SproutMascotState = anyRunning ? "thinking" : "listening";
   const focusedNode = focusedNodeId ? state.nodes[focusedNodeId] ?? null : null;
   const growFromNode: IdeaNode | null = growFromNodeId
     ? state.nodes[growFromNodeId] ?? null
@@ -339,7 +341,7 @@ export function IdeaTreeWorkspace() {
               .join("; ")
           : null;
         throw new Error(
-          [body.message ?? body.error ?? "AI 暂时不可用。", detail]
+          [body.message ?? body.error ?? "芽芽暂时不可用。", detail]
             .filter(Boolean)
             .join(" — "),
         );
@@ -366,7 +368,7 @@ export function IdeaTreeWorkspace() {
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      const message = error instanceof Error ? error.message : "AI 暂时不可用。";
+      const message = error instanceof Error ? error.message : "芽芽暂时不可用。";
       toast.error(message);
     } finally {
       setRuns((prev) => {
@@ -755,6 +757,7 @@ export function IdeaTreeWorkspace() {
           }
           onClearGrowFrom={() => setGrowFromNodeId(null)}
           onQuickAction={handleFocusedQuickAction}
+          mascotState={mascotState}
         />
 
         <AboutYouPanel open={aboutOpen} onClose={() => setAboutOpen(false)} />
@@ -837,8 +840,8 @@ async function readAgentResponseBody(response: Response): Promise<AgentResponseB
 }
 
 function describeHttpStatus(status: number): string {
-  if (status >= 500) return `AI 服务暂时不可用（HTTP ${status}），稍等再试一次。`;
-  if (status === 504) return "AI 思考时间超过上限，再点一次「收敛一下」试试。";
+  if (status >= 500) return `芽芽暂时不可用（HTTP ${status}），稍等再试一次。`;
+  if (status === 504) return "芽芽思考时间超过上限，再点一次「收敛一下」试试。";
   if (status === 429) return "请求太密了，稍等几秒再试一次。";
   if (status >= 400) return `请求被拒绝（HTTP ${status}）。`;
   return `服务异常（HTTP ${status}）。`;
@@ -870,9 +873,15 @@ function EmptyCanvasHint({ loading }: { loading: boolean }) {
           className="mt-2 text-sm leading-relaxed"
           style={{ color: "var(--ink-soft)" }}
         >
-          {loading
-            ? "正在围绕你说的那句话长出第一批子想法…"
-            : "不需要完整，不需要正确。下面输入一句话作为根想法，AI 会从这里开始陪你发散，多条方向可以并行长下去。"}
+          {loading ? (
+            "正在围绕你说的那句话长出第一批子想法…"
+          ) : (
+            <>
+              不需要完整，不需要正确。下面输入一句话作为根想法，
+              <span className="whitespace-nowrap">你的思考伙伴芽芽</span>
+              会从这里开始陪你发散，多条方向可以并行长下去。
+            </>
+          )}
         </p>
       </div>
     </div>
@@ -1172,6 +1181,7 @@ function BottomChat({
   growFromNodeBusy,
   onClearGrowFrom,
   onQuickAction,
+  mascotState,
 }: {
   rootSeeded: boolean;
   message: string;
@@ -1181,6 +1191,7 @@ function BottomChat({
   growFromNodeBusy: boolean;
   onClearGrowFrom: () => void;
   onQuickAction: (actionId: BrainstormQuickActionId) => void;
+  mascotState: SproutMascotState;
 }) {
   const placeholder = !rootSeeded
     ? "把你最初那个还没成型的想法说出来，比如「想做一个让人把模糊想法想清楚的工具」"
@@ -1195,6 +1206,9 @@ function BottomChat({
 
   return (
     <div className="absolute bottom-6 left-1/2 z-10 w-[min(720px,calc(100%-48px))] -translate-x-1/2 space-y-2">
+      <div className="pointer-events-none absolute -top-[88px] left-4 z-10">
+        <SproutMascot state={mascotState} size={120} />
+      </div>
       {showQuickActions ? (
         <div
           className="flex flex-wrap items-center gap-1.5 px-1"
@@ -1262,7 +1276,7 @@ function BottomChat({
           className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none"
           style={{ color: "var(--ink)" }}
           placeholder={placeholder}
-          aria-label="问 AI"
+          aria-label="问芽芽"
           suppressHydrationWarning
         />
         <button

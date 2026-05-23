@@ -77,7 +77,7 @@ export async function handleBrainstormAgentRun({
         {
           ok: false,
           error: "agent_response_invalid",
-          message: "AI 返回的内容格式不符合预期，可以再试一次。",
+          message: "芽芽返回的内容格式不符合预期，可以再试一次。",
           issues: formatZodIssues(error),
         },
         { status: 502 },

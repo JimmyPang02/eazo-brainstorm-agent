@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  devIndicators: false,
   // Pull the local `@eazo/sdk` (hard-copied into node_modules by
   // `bun run sdk:sync`) into Next's watch + transpile graph. Without
   // this, changes inside `node_modules/@eazo/sdk/dist/` don't trigger

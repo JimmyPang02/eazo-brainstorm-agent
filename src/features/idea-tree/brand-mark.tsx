@@ -7,29 +7,30 @@ export function BrandMark({ size = 28 }: { size?: number }) {
       className="text-[color:var(--green-500)]"
       aria-hidden="true"
     >
-      <path d="M14 26 V12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none" />
       <path
-        d="M14 14 C 6 14, 6 6, 14 4 C 22 6, 22 14, 14 14 Z"
-        fill="currentColor"
-        opacity="0.85"
-      />
-      <circle cx="14" cy="9" r="1.6" fill="#fff" opacity="0.95" />
-      <path
-        d="M14 17 C 10 16, 8 14, 8 14"
+        d="M14 13 L14 25"
         stroke="currentColor"
-        strokeWidth="1.3"
+        strokeWidth="2.2"
         strokeLinecap="round"
         fill="none"
-        opacity="0.7"
       />
       <path
-        d="M14 20 C 18 19, 20 17, 20 17"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
+        d="M14 13 Q 4 14 3 5 Q 13 4 14 13 Z"
         fill="none"
-        opacity="0.7"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+        strokeLinecap="round"
       />
+      <path
+        d="M14 13 Q 24 14 25 5 Q 15 4 14 13 Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <circle cx="14" cy="6" r="1.4" fill="currentColor" />
     </svg>
   );
 }

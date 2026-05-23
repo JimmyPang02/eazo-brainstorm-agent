@@ -94,7 +94,7 @@ test("runs the Idea Tree brainstorm path with mocked agent operations", async ({
   await page.goto("/");
 
   // Empty canvas: seed the root by submitting the first thought.
-  const chatInput = page.getByRole("textbox", { name: "问 AI" });
+  const chatInput = page.getByRole("textbox", { name: "问芽芽" });
   await expect(chatInput).toBeVisible();
   await chatInput.fill("想做一个让人把模糊想法想清楚的 brainstorm 工具");
   await page.getByRole("button", { name: "发送" }).click();
