@@ -34,7 +34,7 @@ The old static BrainstormAssist prototype has been removed from the runnable app
 
 ## Eazo Environment
 
-Copy `.env.example` to `.env` and set `EAZO_PRIVATE_KEY` if the app uses authenticated Eazo user APIs:
+Copy `.env.example` to `.env` when you want a local template for Eazo/OpenAI settings:
 
 ```bash
 cp .env.example .env
@@ -56,9 +56,8 @@ For Eazo import, configure the same variables in the Eazo environment:
 - `OPENAI_API_KEY`: required for real Agent runs.
 - `OPENAI_AGENT_MODEL`: optional model override.
 - `EAZO_APP_ID`: required by the app shell.
-- `EAZO_PRIVATE_KEY`: only needed when authenticated Eazo user APIs are used.
 
-The brainstorm session data is local-first and stored in browser IndexedDB. There is no required server database for the Idea Tree workspace itself.
+The brainstorm session data is local-first and stored in browser IndexedDB. There is no required server database, user table, or notification cron for the Idea Tree workspace itself.
 
 ## Checks
 
