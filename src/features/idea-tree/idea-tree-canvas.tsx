@@ -1,3 +1,4 @@
+import type { BrainstormQuickActionId } from "./brainstorm-quick-actions";
 import { IdeaNodeCard } from "./idea-node-card";
 import type { IdeaEdge, IdeaNode } from "./idea-tree-reducer";
 import { NodeActions } from "./node-actions";
@@ -9,10 +10,12 @@ export function IdeaTreeCanvas({
   focusedNode,
   focusedNodeId,
   currentDirectionNodeId,
+  agentLoading,
   onFocusNode,
   onGrowFocused,
   onFollowFocused,
   onParkFocused,
+  onFocusedQuickAction,
 }: {
   nodes: IdeaNode[];
   edges: IdeaEdge[];
@@ -20,10 +23,12 @@ export function IdeaTreeCanvas({
   focusedNode: IdeaNode | null;
   focusedNodeId: string | null;
   currentDirectionNodeId: string | null;
+  agentLoading: boolean;
   onFocusNode: (nodeId: string) => void;
   onGrowFocused: () => void;
   onFollowFocused: () => void;
   onParkFocused: () => void;
+  onFocusedQuickAction: (actionId: BrainstormQuickActionId) => void;
 }) {
   return (
     <div className="absolute left-1/2 top-1/2 h-[1100px] w-[1400px] -translate-x-1/2 -translate-y-[58%]">
@@ -45,6 +50,8 @@ export function IdeaTreeCanvas({
           onGrow={onGrowFocused}
           onFollow={onFollowFocused}
           onPark={onParkFocused}
+          onQuickAction={onFocusedQuickAction}
+          disabled={agentLoading}
         />
       )}
     </div>

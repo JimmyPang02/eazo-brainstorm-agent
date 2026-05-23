@@ -7,7 +7,6 @@ const componentModules = [
   ["IdeaNodeCard", "idea-node-card.tsx"],
   ["NodeActions", "node-actions.tsx"],
   ["IdeaBasket", "idea-basket.tsx"],
-  ["ContextChatPanel", "context-chat-panel.tsx"],
   ["ClearVersionModal", "clear-version-modal.tsx"],
 ] as const;
 

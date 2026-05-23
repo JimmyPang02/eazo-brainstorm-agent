@@ -65,19 +65,17 @@ test("runs the Idea Tree brainstorm path with mocked agent operations", async ({
 
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "AI 对话" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "问 AI" })).toBeVisible();
   await page.getByRole("button", { name: "继续长" }).first().click();
 
   await expect(page.getByRole("button", { name: "更小的试用场景" })).toBeVisible();
   await page.getByRole("button", { name: "更小的试用场景" }).click();
   await page.getByRole("button", { name: "沿这条继续" }).first().click();
 
-  await expect(page.getByText("当前 更小的试用场景")).toBeVisible();
-
   await page.getByRole("button", { name: "找一个反例" }).click();
   await page.getByRole("button", { name: "放一边" }).first().click();
 
-  await expect(page.getByText("找一个反例。之后我不会主动绕回这些方向。")).toBeVisible();
+  await expect(page.getByText("找一个反例。")).toBeVisible();
 
   await page.getByRole("button", { name: "生成清晰版本" }).click();
 
@@ -91,6 +89,6 @@ test("runs the Idea Tree brainstorm path with mocked agent operations", async ({
   await page.reload();
 
   await expect(page.getByRole("button", { name: "更小的试用场景" })).toBeVisible();
-  await expect(page.getByText("找一个反例。之后我不会主动绕回这些方向。")).toBeVisible();
+  await expect(page.getByText("找一个反例。")).toBeVisible();
   expect(agentCall).toBeGreaterThanOrEqual(2);
 });

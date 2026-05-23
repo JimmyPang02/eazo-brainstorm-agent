@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type MutableRefObject } from "react";
 
 import { BrainstormAgentResponseSchema } from "./agent-operations";
-import { applyAgentResponseToIdeaTree, type AgentContextCard } from "./apply-agent-operations";
+import { applyAgentResponseToIdeaTree } from "./apply-agent-operations";
+import {
+  buildBrainstormQuickActionRequest,
+  type BrainstormQuickActionId,
+} from "./brainstorm-quick-actions";
 import { ClearVersionModal } from "./clear-version-modal";
-import { ContextChatPanel } from "./context-chat-panel";
 import { IdeaBasket } from "./idea-basket";
 import { IdeaTreeCanvas } from "./idea-tree-canvas";
 import {
@@ -24,11 +27,6 @@ import {
   saveIdeaTreeState,
   type IdeaTreeDatabase,
 } from "./idea-tree-storage";
-
-type PendingAgentRequest = {
-  userMessage: string;
-  allowWebSearch: boolean;
-};
 
 function createDemoState(): IdeaTreeState {
   let state = createInitialIdeaTreeState(
@@ -107,16 +105,10 @@ export function IdeaTreeWorkspace() {
   const initialState = useMemo(() => createDemoState(), []);
   const [state, dispatch] = useReducer(ideaTreeReducer, initialState);
   const [focusedNodeId, setFocusedNodeId] = useState(initialState.currentDirectionNodeId);
-  const [seedThought, setSeedThought] = useState("");
+  const [message, setMessage] = useState("");
   const [clearOpen, setClearOpen] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [agentLoading, setAgentLoading] = useState(false);
-  const [agentMessage, setAgentMessage] = useState(
-    "我会围绕这棵树继续帮你发散和剪枝。已放一边的想法不会主动绕回，除非你把它恢复。",
-  );
-  const [agentCards, setAgentCards] = useState<AgentContextCard[]>([]);
-  const [agentError, setAgentError] = useState<string | null>(null);
-  const [lastAgentRequest, setLastAgentRequest] = useState<PendingAgentRequest | null>(null);
   const dbRef = useRef<IdeaTreeDatabase | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -163,11 +155,8 @@ export function IdeaTreeWorkspace() {
     if (agentLoading) return;
     const controller = new AbortController();
     abortControllerRef.current = controller;
-    const pendingRequest = { userMessage, allowWebSearch };
 
     setAgentLoading(true);
-    setAgentError(null);
-    setLastAgentRequest(pendingRequest);
 
     try {
       const response = await fetch("/api/agent/run", {
@@ -200,34 +189,18 @@ export function IdeaTreeWorkspace() {
 
       dispatch({ type: "replace_state", state: nextState });
       setFocusedNodeId(nextState.currentDirectionNodeId ?? nextState.focusedNodeId);
-      setAgentMessage(agentResponse.message);
-      setAgentCards(result.cards);
-      setLastAgentRequest(null);
 
       if (nextState.clearVersions.length > state.clearVersions.length) {
         setClearOpen(true);
       }
-
-      if (result.ignoredOperations.length > 0) {
-        setAgentError(`有 ${result.ignoredOperations.length} 个 AI 操作因为不符合当前树状态被忽略。`);
-      }
-    } catch (error) {
-      setAgentError(isAbortError(error) ? "已取消这次 AI 操作。" : error instanceof Error ? error.message : "AI 暂时不可用。");
+    } catch {
+      // intentionally silent — UI only signals loading state
     } finally {
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
       }
       setAgentLoading(false);
     }
-  }
-
-  function handleCancelAgent() {
-    abortControllerRef.current?.abort();
-  }
-
-  function handleRetryAgent() {
-    if (!lastAgentRequest) return;
-    void runAgent(lastAgentRequest.userMessage, lastAgentRequest.allowWebSearch);
   }
 
   function handleFollow(nodeId: string) {
@@ -253,11 +226,21 @@ export function IdeaTreeWorkspace() {
     setFocusedNodeId(next.currentDirectionNodeId ?? next.focusedNodeId);
   }
 
-  function handleAddSeedThought() {
-    const trimmed = seedThought.trim();
-    if (!trimmed) return;
-    dispatch({ type: "add_seed_thought", title: trimmed });
-    setSeedThought("");
+  function handleSendMessage() {
+    const trimmed = message.trim();
+    if (!trimmed || agentLoading) return;
+    setMessage("");
+    void runAgent(trimmed, shouldAllowWebSearch(trimmed));
+  }
+
+  function handleFocusedQuickAction(actionId: BrainstormQuickActionId) {
+    if (agentLoading) return;
+    const request = buildBrainstormQuickActionRequest(actionId, {
+      focusedNodeTitle: focusedNode?.title ?? null,
+      currentDirectionTitle: currentDirection?.title ?? null,
+      parkedNodeCount: parkedNodes.length,
+    });
+    void runAgent(request.userMessage, request.allowWebSearch);
   }
 
   function handleAcceptNodeEdit(
@@ -274,7 +257,7 @@ export function IdeaTreeWorkspace() {
   }
 
   return (
-    <main className="grid h-screen grid-cols-[minmax(0,1fr)_360px] overflow-hidden bg-[#f5f2ea] text-[#1d2520]">
+    <main className="grid h-screen grid-cols-1 overflow-hidden bg-[#f5f2ea] text-[#1d2520]">
       <section
         className="relative overflow-hidden bg-[radial-gradient(circle,rgba(70,94,78,0.13)_1px,transparent_1px),linear-gradient(180deg,#f1f4eb,#edf1e7)] bg-[length:26px_26px,auto]"
         aria-label="Idea Tree workspace"
@@ -293,6 +276,7 @@ export function IdeaTreeWorkspace() {
           focusedNode={focusedNode}
           focusedNodeId={focusedNodeId}
           currentDirectionNodeId={state.currentDirectionNodeId}
+          agentLoading={agentLoading}
           onFocusNode={setFocusedNodeId}
           onGrowFocused={() =>
             focusedNode &&
@@ -300,57 +284,48 @@ export function IdeaTreeWorkspace() {
           }
           onFollowFocused={() => focusedNode && handleFollow(focusedNode.id)}
           onParkFocused={() => focusedNode && handlePark(focusedNode.id)}
+          onFocusedQuickAction={handleFocusedQuickAction}
         />
 
         <IdeaBasket nodes={parkedNodes} onRestore={handleRestore} />
 
+        <ParkedSummaryCard nodes={parkedNodes} />
+
+        {canClear && (
+          <ClearVersionTriggerCard
+            disabled={agentLoading}
+            onTrigger={() =>
+              void runAgent("基于当前方向和已经放一边的想法，生成一版阶段性的清晰版本。")
+            }
+          />
+        )}
+
         <div className="absolute bottom-6 left-1/2 z-10 flex w-[min(720px,calc(100%-48px))] -translate-x-1/2 items-center gap-3 rounded-2xl border border-[#3440371f] bg-[#fffdf8e8] px-4 py-3 shadow-[0_16px_40px_rgba(48,58,47,0.12)] backdrop-blur">
           <span className="shrink-0 rounded-full bg-[#edf1e7] px-3 py-1 text-xs font-medium text-[#53645a]">
-            补一句想法
+            问 AI
           </span>
           <input
-            value={seedThought}
-            onChange={(event) => setSeedThought(event.target.value)}
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") handleAddSeedThought();
+              if (event.key === "Enter") handleSendMessage();
             }}
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#8b948c]"
-            placeholder="比如：我想让它更像一个思考伙伴，而不是聊天工具"
-            aria-label="补一句想法"
+            disabled={agentLoading}
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#8b948c] disabled:opacity-60"
+            placeholder="比如：从用户视角换一个角度继续想，或调研一下类似的案例"
+            aria-label="问 AI"
           />
           <button
             type="button"
-            onClick={handleAddSeedThought}
-            className="grid h-9 w-9 place-items-center rounded-full bg-[#355f49] text-white"
-            aria-label="添加想法"
+            onClick={handleSendMessage}
+            disabled={agentLoading || !message.trim()}
+            className="grid h-9 w-9 place-items-center rounded-full bg-[#355f49] text-white disabled:cursor-not-allowed disabled:opacity-45"
+            aria-label="发送"
           >
-            ↑
+            {agentLoading ? "…" : "↑"}
           </button>
         </div>
       </section>
-
-      <ContextChatPanel
-        currentDirection={currentDirection}
-        focusedNode={focusedNode}
-        parkedNodes={parkedNodes}
-        actionCount={state.actions.length}
-        canClear={canClear}
-        agentMessage={agentMessage}
-        agentCards={agentCards}
-        agentError={agentError}
-        agentLoading={agentLoading}
-        onAskAgent={(message, allowWebSearch) => void runAgent(message, allowWebSearch)}
-        onCancelAgent={handleCancelAgent}
-        onRetryAgent={lastAgentRequest ? handleRetryAgent : null}
-        onGrowFocused={() =>
-          focusedNode &&
-          void runAgent(`围绕「${focusedNode.title}」继续长出 3-5 个不同但相关的子想法。`)
-        }
-        onFollowFocused={() => focusedNode && handleFollow(focusedNode.id)}
-        onParkFocused={() => focusedNode && handlePark(focusedNode.id)}
-        onCreateClearVersion={() => void runAgent("基于当前方向和已经放一边的想法，生成一版阶段性的清晰版本。")}
-        onAcceptNodeEdit={handleAcceptNodeEdit}
-      />
 
       {clearOpen && (
         <ClearVersionModal
@@ -372,10 +347,8 @@ function getBrowserDb(dbRef: MutableRefObject<IdeaTreeDatabase | null>) {
   return dbRef.current;
 }
 
-function isAbortError(error: unknown) {
-  return error instanceof DOMException
-    ? error.name === "AbortError"
-    : error instanceof Error && error.name === "AbortError";
+function shouldAllowWebSearch(input: string) {
+  return /搜索|调研|案例|资料|趋势|事实|竞品|新闻|市场|论文|benchmark|research/i.test(input);
 }
 
 function WorkspaceTopbar({
@@ -413,6 +386,43 @@ function WorkspaceTopbar({
           树上做判断 · {activeCount} 个活跃想法 · {parkedCount} 个放一边
         </div>
       </div>
+    </div>
+  );
+}
+
+function ParkedSummaryCard({ nodes }: { nodes: Array<{ id: string; title: string }> }) {
+  if (nodes.length === 0) return null;
+  return (
+    <div className="absolute right-6 top-[88px] z-10 max-w-[260px] rounded-2xl border border-[#3440371a] bg-[#fffdf8e8] px-4 py-3 shadow-[0_8px_24px_rgba(40,48,40,0.08)] backdrop-blur">
+      <h3 className="text-xs font-semibold text-[#53645a]">已放一边</h3>
+      <p className="mt-1 text-[11px] leading-relaxed text-[#667168]">
+        {nodes.map((node) => node.title).join("、")}。
+      </p>
+    </div>
+  );
+}
+
+function ClearVersionTriggerCard({
+  disabled,
+  onTrigger,
+}: {
+  disabled: boolean;
+  onTrigger: () => void;
+}) {
+  return (
+    <div className="absolute right-6 top-[200px] z-10 max-w-[260px] rounded-2xl border border-[#355f4933] bg-[#eef4e8e6] px-4 py-3 shadow-[0_8px_24px_rgba(40,48,40,0.08)] backdrop-blur">
+      <h3 className="text-xs font-semibold">可以收一下了</h3>
+      <p className="mt-1 text-[11px] leading-relaxed text-[#53645a]">
+        已有当前方向和取舍痕迹，可以生成一版阶段性的清晰版本。
+      </p>
+      <button
+        type="button"
+        onClick={onTrigger}
+        disabled={disabled}
+        className="mt-2 rounded-full bg-[#355f49] px-3 py-1.5 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+      >
+        生成清晰版本
+      </button>
     </div>
   );
 }

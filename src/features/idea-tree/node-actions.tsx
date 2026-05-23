@@ -1,15 +1,36 @@
+import {
+  BRAINSTORM_QUICK_ACTIONS,
+  type BrainstormQuickActionId,
+} from "./brainstorm-quick-actions";
 import type { IdeaNode } from "./idea-tree-reducer";
+
+const FOLLOWUP_QUICK_ACTION_IDS: BrainstormQuickActionId[] = [
+  "shift_angle",
+  "find_counterexample",
+  "find_similar_cases",
+  "synthesize_direction",
+];
+
+const FOLLOWUP_QUICK_ACTIONS = FOLLOWUP_QUICK_ACTION_IDS.map((id) => {
+  const action = BRAINSTORM_QUICK_ACTIONS.find((candidate) => candidate.id === id);
+  if (!action) throw new Error(`missing quick action: ${id}`);
+  return action;
+});
 
 export function NodeActions({
   node,
   onGrow,
   onFollow,
   onPark,
+  onQuickAction,
+  disabled = false,
 }: {
   node: IdeaNode;
   onGrow: () => void;
   onFollow: () => void;
   onPark: () => void;
+  onQuickAction: (actionId: BrainstormQuickActionId) => void;
+  disabled?: boolean;
 }) {
   return (
     <div
@@ -26,24 +47,47 @@ export function NodeActions({
         <button
           type="button"
           onClick={onGrow}
-          className="rounded-full bg-[#edf1e7] px-3 py-2 text-xs font-medium text-[#355f49]"
+          disabled={disabled}
+          className="rounded-full bg-[#edf1e7] px-3 py-2 text-xs font-medium text-[#355f49] disabled:cursor-not-allowed disabled:opacity-45"
         >
           继续长
         </button>
         <button
           type="button"
           onClick={onFollow}
-          className="rounded-full bg-[#355f49] px-3 py-2 text-xs font-medium text-white"
+          disabled={disabled}
+          className="rounded-full bg-[#355f49] px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-45"
         >
           沿这条继续
         </button>
         <button
           type="button"
           onClick={onPark}
-          className="rounded-full bg-[#f7ece0] px-3 py-2 text-xs font-medium text-[#7a4525]"
+          disabled={disabled}
+          className="rounded-full bg-[#f7ece0] px-3 py-2 text-xs font-medium text-[#7a4525] disabled:cursor-not-allowed disabled:opacity-45"
         >
           放一边
         </button>
+      </div>
+
+      <div className="mt-4 border-t border-[#b6724226] pt-3">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8b948c]">
+          让 AI 帮忙
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {FOLLOWUP_QUICK_ACTIONS.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              onClick={() => onQuickAction(action.id)}
+              disabled={disabled}
+              title={action.description}
+              className="rounded-xl border border-[#3440371a] bg-[#f8f6ef] px-2.5 py-2 text-left text-[11px] font-medium text-[#38443c] transition hover:bg-[#eef4e8] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
