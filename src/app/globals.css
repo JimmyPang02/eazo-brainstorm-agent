@@ -49,7 +49,6 @@
 }
 
 body {
-  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
   /* Kill the ~300ms synthetic click delay on touch devices. */
   touch-action: manipulation;
 }
@@ -98,6 +97,47 @@ body {
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+}
+
+/* Sprout Brainstorm Tree design tokens — ported verbatim from
+   the reference design at BrainstormAssist17_54/styles.css.
+   Declared at the top-level (not inside @layer base) because
+   Tailwind v4 / lightningcss tree-shakes unreferenced custom
+   properties in layered rules. These are only consumed via inline
+   style={{ background: "var(--xxx)" }} and arbitrary Tailwind
+   utilities, which the optimizer can't trace. */
+:root {
+  --bg: #f3f5ec;
+  --canvas: #e9eee0;
+  --canvas-dot: rgba(60, 90, 60, 0.10);
+  --paper: #ffffff;
+  --paper-warm: #fcfbf6;
+  --paper-edge: rgba(60, 90, 60, 0.10);
+  --green-50: #e8efde;
+  --green-100: #d4dec5;
+  --green-200: #aec2a0;
+  --green-300: #88a585;
+  --green-400: #5e8367;
+  --green-500: #3f6450;
+  --green-600: #2c4a3a;
+  --green-700: #1a2e23;
+  --green-edge: rgba(63, 100, 80, 0.20);
+  --ink: #16201a;
+  --ink-soft: #4d5b50;
+  --ink-mute: #8a978d;
+  --warm: #b66e44;
+  --warm-soft: #f3dec8;
+  --warm-edge: rgba(182, 110, 68, 0.30);
+  --shadow-sm: 0 1px 2px rgba(20, 40, 25, 0.06);
+  --shadow-md: 0 6px 18px rgba(20, 40, 25, 0.07), 0 2px 4px rgba(20, 40, 25, 0.04);
+  --shadow-lg: 0 18px 40px rgba(20, 40, 25, 0.14);
+  --radius-token-sm: 8px;
+  --radius-token-md: 12px;
+  --radius-token-lg: 18px;
+  --anim-fast: 180ms;
+  --anim-med: 320ms;
+  --anim-slow: 520ms;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .dark {

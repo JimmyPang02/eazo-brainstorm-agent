@@ -1,37 +1,129 @@
+import { useState } from "react";
+import { ShoppingBasket } from "lucide-react";
+
 import type { IdeaNode } from "./idea-tree-reducer";
 
 export function IdeaBasket({
   nodes,
-  onRestore,
+  onUnfavorite,
 }: {
   nodes: IdeaNode[];
-  onRestore: (nodeId: string) => void;
+  onUnfavorite: (nodeId: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const hasNodes = nodes.length > 0;
+
   return (
-    <div className="group absolute left-0 top-1/2 z-20 -translate-y-1/2 rounded-r-2xl border border-l-0 border-[#3440371f] bg-[#fffdf8ed] p-3 shadow-[0_10px_28px_rgba(48,58,47,0.1)]">
-      <div className="mx-auto mb-2 grid h-6 w-6 place-items-center rounded-full bg-[#355f49] text-xs font-bold text-white">
-        {nodes.length}
-      </div>
-      <div className="[writing-mode:vertical-rl] text-xs font-medium tracking-[0.1em] text-[#53645a]">
-        想法篮子
-      </div>
-      {nodes.length > 0 && (
-        <div className="absolute left-14 top-1/2 hidden w-64 -translate-y-1/2 rounded-2xl border border-[#3440371f] bg-[#fffdf8] p-3 shadow-[0_18px_44px_rgba(50,56,45,0.12)] group-hover:block md:block">
-          <div className="mb-2 text-xs font-semibold text-[#53645a]">已放一边</div>
-          <div className="space-y-2">
-            {nodes.slice(0, 3).map((node) => (
-              <div key={node.id} className="rounded-xl bg-[#f5f2ea] p-2">
-                <div className="text-xs font-semibold">{node.title}</div>
-                <button
-                  type="button"
-                  onClick={() => onRestore(node.id)}
-                  className="mt-2 text-[11px] font-medium text-[#355f49]"
-                >
-                  恢复
-                </button>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-label="想法篮子"
+        className="relative grid h-10 w-10 place-items-center rounded-2xl transition"
+        style={{
+          background: open ? "var(--paper-warm)" : "transparent",
+          color: open ? "var(--warm)" : "var(--ink-soft)",
+        }}
+      >
+        <ShoppingBasket size={18} strokeWidth={1.75} aria-hidden />
+        {hasNodes && (
+          <span
+            className="absolute -right-0.5 -top-0.5 grid h-[16px] min-w-[16px] place-items-center rounded-full px-1 text-[10px] font-semibold leading-none text-white"
+            style={{
+              background: "var(--warm)",
+              boxShadow: "0 0 0 2px var(--paper)",
+            }}
+            aria-hidden
+          >
+            {nodes.length}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div
+          className="absolute left-14 top-1/2 w-72 -translate-y-1/2 rounded-2xl border p-4"
+          style={{
+            background: "var(--paper)",
+            borderColor: "var(--warm-edge)",
+            boxShadow: "var(--shadow-lg)",
+          }}
+        >
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <div
+                className="text-[11px] font-semibold uppercase tracking-[0.16em]"
+                style={{ color: "var(--warm)" }}
+              >
+                想法篮子
               </div>
-            ))}
+              <p className="mt-1 text-[11px] leading-relaxed" style={{ color: "var(--ink-mute)" }}>
+                你收藏的方向；清晰版本会从这些汇总。
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-base leading-none"
+              style={{ color: "var(--ink-mute)" }}
+              aria-label="关闭"
+            >
+              ×
+            </button>
           </div>
+          {hasNodes ? (
+            <>
+              <div className="space-y-2">
+                {nodes.map((node) => {
+                  return (
+                    <div
+                      key={node.id}
+                      className="rounded-xl border px-3 py-2.5"
+                      style={{
+                        background: "var(--paper-warm)",
+                        borderColor: "var(--warm-edge)",
+                      }}
+                    >
+                      <div
+                        className="text-[13px] font-semibold leading-snug"
+                        style={{ color: "var(--ink)" }}
+                      >
+                        {node.title}
+                      </div>
+                      {node.description && (
+                        <div
+                          className="mt-1 text-[11px] leading-relaxed"
+                          style={{ color: "var(--ink-soft)" }}
+                        >
+                          {node.description}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onUnfavorite(node.id)}
+                        className="mt-2 text-[11px] font-medium"
+                        style={{ color: "var(--warm)" }}
+                      >
+                        取消收藏
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div
+              className="rounded-xl border border-dashed px-3 py-6 text-center text-[12px] leading-relaxed"
+              style={{
+                borderColor: "var(--warm-edge)",
+                color: "var(--ink-mute)",
+              }}
+            >
+              篮子还是空的。<br />
+              去树上点一下喜欢的方向，<br />
+              收藏到这里慢慢汇总。
+            </div>
+          )}
         </div>
       )}
     </div>
