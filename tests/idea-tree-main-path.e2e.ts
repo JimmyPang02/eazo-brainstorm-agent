@@ -1,4 +1,28 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
+
+// Node focus relies on pointerdown + pointerup (see idea-node-card.tsx). The
+// canvas sits inside a pan/zoom transform, so deeper-layer nodes can extend
+// outside Playwright's viewport rectangle even though they're rendered. Dispatch
+// the pointer event pair via DOM APIs so the viewport bounds check is skipped.
+async function focusNode(locator: Locator) {
+  await locator.evaluate((el) => {
+    const rect = (el as HTMLElement).getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const options: PointerEventInit = {
+      pointerId: 1,
+      pointerType: "mouse",
+      clientX: cx,
+      clientY: cy,
+      isPrimary: true,
+      button: 0,
+      bubbles: true,
+      cancelable: true,
+    };
+    el.dispatchEvent(new PointerEvent("pointerdown", options));
+    el.dispatchEvent(new PointerEvent("pointerup", options));
+  });
+}
 
 test("runs the Idea Tree brainstorm path with mocked agent operations", async ({ page }) => {
   let agentCall = 0;
@@ -45,19 +69,20 @@ test("runs the Idea Tree brainstorm path with mocked agent operations", async ({
     }
 
     const parentNodeId = request.focusedNodeId ?? request.state.rootNodeId;
+    const callIndex = agentCall;
     await route.fulfill({
       json: {
         ok: true,
         response: {
-          message: "我先沿当前节点长出三个可比较方向。",
+          message: `我先沿当前节点长出三个可比较方向（第 ${callIndex} 次）。`,
           operations: [
             {
               type: "create_nodes",
               parentNodeId,
               ideas: [
-                { title: "更小的试用场景", description: "缩到一天内能验证的 brainstorm 体验。" },
-                { title: "找一个反例", description: "看它什么时候会退化成普通聊天。" },
-                { title: "换成内容选题", description: "验证它不只服务产品 idea。" },
+                { title: `分支-${callIndex}-A`, description: "第一个候选方向。" },
+                { title: `分支-${callIndex}-B`, description: "第二个候选方向。" },
+                { title: `分支-${callIndex}-C`, description: "第三个候选方向。" },
               ],
             },
           ],
@@ -74,29 +99,42 @@ test("runs the Idea Tree brainstorm path with mocked agent operations", async ({
   await chatInput.fill("想做一个让人把模糊想法想清楚的 brainstorm 工具");
   await page.getByRole("button", { name: "发送" }).click();
 
-  // Wait for AI-grown children.
-  await expect(page.getByRole("button", { name: "更小的试用场景" })).toBeVisible();
+  // Layer 1 children arrive from the seed-and-grow agent call.
+  await expect(page.getByRole("button", { name: "分支-1-A" })).toBeVisible();
 
-  // Click a child to focus → favorite it.
-  await page.getByRole("button", { name: "更小的试用场景" }).click();
-  await page.getByRole("button", { name: "收藏" }).first().click();
+  // Grow a layer-1 node → layer 2.
+  await focusNode(page.getByRole("button", { name: "分支-1-A" }));
+  await page.getByRole("button", { name: "继续长" }).dispatchEvent("click");
+  await chatInput.fill("再多想几个角度");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByRole("button", { name: "分支-2-A" })).toBeVisible();
 
-  // Focus a different child → park it.
-  await page.getByRole("button", { name: "找一个反例" }).click();
-  await page.getByRole("button", { name: "放一边" }).first().click();
+  // Grow a layer-2 node → layer 3 (canConverge threshold).
+  await focusNode(page.getByRole("button", { name: "分支-2-A" }));
+  await page.getByRole("button", { name: "继续长" }).dispatchEvent("click");
+  await chatInput.fill("再深入一层");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByRole("button", { name: "分支-3-A" })).toBeVisible();
 
-  // After favorite + grow, the synthesis trigger should appear.
-  await page.getByRole("button", { name: "生成清晰版本" }).click();
+  // Favorite one node and park another so the synthesis has material.
+  await focusNode(page.getByRole("button", { name: "分支-3-A" }));
+  await page.getByRole("button", { name: "收藏" }).dispatchEvent("click");
+
+  await focusNode(page.getByRole("button", { name: "分支-1-B" }));
+  await page.getByRole("button", { name: "放一边" }).dispatchEvent("click");
+
+  // Converge → clear version dialog with the agent's HTML report. The button's
+  // aria-label overrides its text; match by accessible name.
+  await page.getByRole("button", { name: "收敛当前想法" }).click();
 
   const clearVersionDialog = page.getByRole("dialog", { name: "清晰版本" });
   await expect(clearVersionDialog).toBeVisible();
-  await expect(
-    clearVersionDialog.getByText("这轮更清楚的是：先把 brainstorm 做成树上的判断过程。"),
-  ).toBeVisible();
+  await expect(clearVersionDialog.getByText("这一轮想法现在更清楚了")).toBeVisible();
   await page.getByRole("button", { name: "继续想" }).click();
+  await expect(clearVersionDialog).toBeHidden();
 
+  // Persistence smoke check: the seeded tree survives a reload.
   await page.reload();
-
-  await expect(page.getByRole("button", { name: "更小的试用场景" })).toBeVisible();
-  expect(agentCall).toBeGreaterThanOrEqual(2);
+  await expect(page.getByRole("button", { name: "分支-1-A" })).toBeVisible();
+  expect(agentCall).toBeGreaterThanOrEqual(4);
 });
