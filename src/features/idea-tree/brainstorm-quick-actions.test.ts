@@ -19,8 +19,7 @@ describe("brainstorm quick actions", () => {
 
   test("builds context-aware requests that preserve no-PRD behavior and parked ideas", () => {
     const request = buildBrainstormQuickActionRequest("shift_angle", {
-      focusedNodeTitle: "一个泛泛的内容工具",
-      currentDirectionTitle: "服务创作者选题",
+      focusedNodeTitle: "服务创作者选题",
       parkedNodeCount: 2,
     });
 
@@ -33,7 +32,6 @@ describe("brainstorm quick actions", () => {
   test("uses OpenAI web search only for similar-case research", () => {
     const request = buildBrainstormQuickActionRequest("find_similar_cases", {
       focusedNodeTitle: "一个线下活动玩法",
-      currentDirectionTitle: null,
       parkedNodeCount: 0,
     });
 
@@ -45,7 +43,6 @@ describe("brainstorm quick actions", () => {
   test("keeps naming as suggestions instead of direct node edits", () => {
     const request = buildBrainstormQuickActionRequest("name_direction", {
       focusedNodeTitle: "帮助用户整理创作灵感",
-      currentDirectionTitle: null,
       parkedNodeCount: 1,
     });
 
@@ -53,5 +50,13 @@ describe("brainstorm quick actions", () => {
     expect(request.userMessage).toContain("临时名字");
     expect(request.userMessage).toContain("改写建议");
     expect(request.userMessage).toContain("不要直接改");
+  });
+
+  test("falls back to a generic target when no focused node is provided", () => {
+    const request = buildBrainstormQuickActionRequest("shift_angle", {
+      focusedNodeTitle: null,
+      parkedNodeCount: 0,
+    });
+    expect(request.userMessage).toContain("当前这棵 Idea Tree");
   });
 });

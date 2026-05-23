@@ -7,11 +7,20 @@ import {
   type BrainstormOpenAIClient,
 } from "./brainstorm-agent";
 
+export const DEFAULT_BRAINSTORM_AGENT_TIMEOUT_MS = 90_000;
+
+function resolveDefaultTimeoutMs(): number {
+  const raw = process.env.AGENT_TIMEOUT_MS;
+  if (!raw) return DEFAULT_BRAINSTORM_AGENT_TIMEOUT_MS;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_BRAINSTORM_AGENT_TIMEOUT_MS;
+}
+
 export async function handleBrainstormAgentRun({
   apiKey,
   body,
   createClient = createOpenAIClient,
-  timeoutMs = 45_000,
+  timeoutMs = resolveDefaultTimeoutMs(),
 }: {
   apiKey: string | undefined;
   body: unknown;
@@ -60,6 +69,18 @@ export async function handleBrainstormAgentRun({
           message: "Brainstorm agent run timed out.",
         },
         { status: 504 },
+      );
+    }
+
+    if (error instanceof ZodError) {
+      return Response.json(
+        {
+          ok: false,
+          error: "agent_response_invalid",
+          message: "AI 返回的内容格式不符合预期，可以再试一次。",
+          issues: formatZodIssues(error),
+        },
+        { status: 502 },
       );
     }
 

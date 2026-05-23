@@ -12,7 +12,7 @@ describe("applyAgentResponseToIdeaTree", () => {
   test("applies whitelisted agent operations through the idea tree reducer", () => {
     const state = createInitialIdeaTreeState("agent-apply-1", "一个模糊的内容选题");
     const response: BrainstormAgentResponse = {
-      message: "先长出几个方向，再沿第一个方向继续。",
+      message: "先长出几个方向，再追问根想法。",
       operations: [
         {
           type: "create_nodes",
@@ -47,6 +47,30 @@ describe("applyAgentResponseToIdeaTree", () => {
         question: "这期内容最想留下的一个问题是什么？",
       },
     ]);
+  });
+
+  test("applies favorite_node and unfavorite_node through the reducer", () => {
+    let state = createInitialIdeaTreeState("agent-apply-fav", "一个模糊的方向");
+    state = ideaTreeReducer(state, {
+      type: "grow_from_node",
+      nodeId: state.rootNodeId,
+      ideas: [{ title: "方向 A" }, { title: "方向 B" }],
+      source: "ai",
+    });
+    const [a, b] = getActiveNodes(state).filter((node) => node.parentId === state.rootNodeId);
+    const result = applyAgentResponseToIdeaTree(state, {
+      message: "我把 A 标为收藏，把 B 取消收藏。",
+      operations: [
+        { type: "favorite_node", nodeId: a.id },
+        { type: "unfavorite_node", nodeId: b.id, reason: "还不够明确" },
+      ],
+    });
+
+    expect(result.state.nodes[a.id].favorited).toBe(true);
+    expect(result.state.nodes[b.id].favorited).toBe(false);
+    expect(result.appliedOperations).toEqual(["favorite_node"]);
+    // unfavorite_node on a not-yet-favorited node is a no-op:
+    expect(result.ignoredOperations).toEqual(["unfavorite_node"]);
   });
 
   test("keeps proposed node edits as suggestion cards instead of changing node text", () => {
@@ -124,7 +148,7 @@ describe("applyAgentResponseToIdeaTree", () => {
     expect(result.appliedOperations).toEqual(["propose_node_merge"]);
   });
 
-  test("does not let the agent grow from a parked idea basket node", () => {
+  test("does not let the agent grow from a parked node", () => {
     let state = createInitialIdeaTreeState("agent-apply-3", "一个模糊的研究方向");
     state = ideaTreeReducer(state, {
       type: "grow_from_node",
@@ -152,7 +176,7 @@ describe("applyAgentResponseToIdeaTree", () => {
     expect(result.ignoredOperations).toEqual(["create_nodes"]);
   });
 
-  test("creates a clear version draft card when the agent summarizes a valid brainstorm trace", () => {
+  test("creates a clear version draft card when the agent summarizes after favorite + grow", () => {
     let state = createInitialIdeaTreeState("agent-apply-4", "一个模糊的创作方向");
     state = ideaTreeReducer(state, {
       type: "grow_from_node",
@@ -163,7 +187,7 @@ describe("applyAgentResponseToIdeaTree", () => {
     const [videoNode, webNode] = getActiveNodes(state).filter(
       (node) => node.parentId === state.rootNodeId,
     );
-    state = ideaTreeReducer(state, { type: "follow_direction", nodeId: webNode.id });
+    state = ideaTreeReducer(state, { type: "favorite_node", nodeId: webNode.id });
     state = ideaTreeReducer(state, { type: "park_node", nodeId: videoNode.id });
 
     const result = applyAgentResponseToIdeaTree(state, {
@@ -172,10 +196,11 @@ describe("applyAgentResponseToIdeaTree", () => {
         {
           type: "create_clear_version",
           summary: "这轮更清楚的是：先用互动网页承载创作方向。",
-          currentDirection: webNode.title,
+          favoritedTitles: [webNode.title],
           parked: [videoNode.title],
           uncertain: "还不确定互动密度。",
           nextThought: "继续拆三个核心互动。",
+          html: "<section><h2>这一轮更清楚了</h2><p>先用互动网页承载创作方向。</p></section>",
         },
       ],
     });
@@ -185,10 +210,11 @@ describe("applyAgentResponseToIdeaTree", () => {
       {
         type: "clear_version_draft",
         summary: "这轮更清楚的是：先用互动网页承载创作方向。",
-        currentDirection: webNode.title,
+        favoritedTitles: [webNode.title],
         parked: [videoNode.title],
         uncertain: "还不确定互动密度。",
         nextThought: "继续拆三个核心互动。",
+        html: "<section><h2>这一轮更清楚了</h2><p>先用互动网页承载创作方向。</p></section>",
       },
     ]);
   });

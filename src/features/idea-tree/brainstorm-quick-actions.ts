@@ -14,7 +14,6 @@ export type BrainstormQuickAction = {
 
 export type BrainstormQuickActionContext = {
   focusedNodeTitle: string | null;
-  currentDirectionTitle: string | null;
   parkedNodeCount: number;
 };
 
@@ -60,7 +59,7 @@ export function buildBrainstormQuickActionRequest(
   actionId: BrainstormQuickActionId,
   context: BrainstormQuickActionContext,
 ): BrainstormQuickActionRequest {
-  const target = context.currentDirectionTitle ?? context.focusedNodeTitle ?? "当前这棵 Idea Tree";
+  const target = context.focusedNodeTitle ?? "当前这棵 Idea Tree";
   const basketRule =
     context.parkedNodeCount > 0
       ? `已放一边的 ${context.parkedNodeCount} 个方向不要主动绕回，除非这次动作必须引用它们。`

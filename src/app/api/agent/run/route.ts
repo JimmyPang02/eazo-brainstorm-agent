@@ -1,6 +1,7 @@
 import { handleBrainstormAgentRun } from "@/features/idea-tree/brainstorm-agent-api";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   let body: unknown;

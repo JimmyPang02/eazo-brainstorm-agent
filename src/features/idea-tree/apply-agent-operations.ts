@@ -28,10 +28,11 @@ export type AgentContextCard =
   | {
       type: "clear_version_draft";
       summary: string;
-      currentDirection: string;
+      favoritedTitles: string[];
       parked: string[];
       uncertain: string;
       nextThought: string;
+      html: string;
     };
 
 export type ApplyAgentResponseResult = {
@@ -63,16 +64,29 @@ export function applyAgentResponseToIdeaTree(
         nextState = ideaTreeReducer(nextState, {
           type: "grow_from_node",
           nodeId: operation.parentNodeId,
-          ideas: operation.ideas,
+          ideas: operation.ideas.map((idea) => ({
+            title: idea.title,
+            description: idea.description,
+            quickActionPrompts: idea.quickActionPrompts,
+          })),
           source: "ai",
         });
         recordMutation(operation.type, before, nextState, appliedOperations, ignoredOperations);
         break;
       }
 
-      case "set_current_direction": {
+      case "favorite_node": {
         nextState = ideaTreeReducer(nextState, {
-          type: "follow_direction",
+          type: "favorite_node",
+          nodeId: operation.nodeId,
+        });
+        recordMutation(operation.type, before, nextState, appliedOperations, ignoredOperations);
+        break;
+      }
+
+      case "unfavorite_node": {
+        nextState = ideaTreeReducer(nextState, {
+          type: "unfavorite_node",
           nodeId: operation.nodeId,
         });
         recordMutation(operation.type, before, nextState, appliedOperations, ignoredOperations);
@@ -107,20 +121,22 @@ export function applyAgentResponseToIdeaTree(
         nextState = ideaTreeReducer(nextState, {
           type: "create_clear_version",
           summary: operation.summary,
-          currentDirection: operation.currentDirection,
+          favoritedTitles: operation.favoritedTitles,
           parked: operation.parked,
           uncertain: operation.uncertain,
           nextThought: operation.nextThought,
+          html: operation.html,
         });
         recordMutation(operation.type, before, nextState, appliedOperations, ignoredOperations);
         if (nextState !== before) {
           cards.push({
             type: "clear_version_draft",
             summary: operation.summary,
-            currentDirection: operation.currentDirection,
+            favoritedTitles: operation.favoritedTitles,
             parked: operation.parked,
             uncertain: operation.uncertain,
             nextThought: operation.nextThought,
+            html: operation.html,
           });
         }
         break;

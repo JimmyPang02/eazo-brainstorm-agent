@@ -1,5 +1,12 @@
 export type IdeaNodeSource = "user" | "ai";
-export type IdeaNodeStatus = "active" | "current" | "parked";
+export type IdeaNodeStatus = "active" | "parked";
+
+export type IdeaNodeQuickActionPrompts = {
+  shift_angle: string;
+  find_counterexample: string;
+  find_similar_cases: string;
+  synthesize_direction: string;
+};
 
 export type IdeaNode = {
   id: string;
@@ -9,10 +16,12 @@ export type IdeaNode = {
   description?: string;
   source: IdeaNodeSource;
   status: IdeaNodeStatus;
+  favorited: boolean;
   x: number;
   y: number;
   createdAt: string;
   updatedAt: string;
+  quickActionPrompts?: IdeaNodeQuickActionPrompts;
 };
 
 export type IdeaEdge = {
@@ -37,7 +46,14 @@ export type BrainstormAction =
   | {
       id: string;
       treeId: string;
-      type: "follow_direction";
+      type: "favorite_node";
+      nodeId: string;
+      createdAt: string;
+    }
+  | {
+      id: string;
+      treeId: string;
+      type: "unfavorite_node";
       nodeId: string;
       createdAt: string;
     }
@@ -80,6 +96,14 @@ export type BrainstormAction =
       type: "create_clear_version";
       clearVersionId: string;
       createdAt: string;
+    }
+  | {
+      id: string;
+      treeId: string;
+      type: "seed_root";
+      nodeId: string;
+      title: string;
+      createdAt: string;
     };
 
 export type ClearVersion = {
@@ -87,10 +111,11 @@ export type ClearVersion = {
   treeId: string;
   createdAt: string;
   summary: string;
-  currentDirection: string;
+  favoritedTitles: string[];
   parked: string[];
   uncertain: string;
   nextThought: string;
+  html: string;
 };
 
 export type AgentRun = {
@@ -109,10 +134,8 @@ export type IdeaTreeState = {
   title: string;
   rootNodeId: string;
   focusedNodeId: string;
-  currentDirectionNodeId: string | null;
   nodes: Record<string, IdeaNode>;
   edges: Record<string, IdeaEdge>;
-  basketNodeIds: string[];
   actions: BrainstormAction[];
   agentRuns: AgentRun[];
   clearVersions: ClearVersion[];
@@ -122,15 +145,23 @@ export type IdeaTreeReducerAction =
   | {
       type: "grow_from_node";
       nodeId: string;
-      ideas: Array<{ title: string; description?: string }>;
+      ideas: Array<{
+        title: string;
+        description?: string;
+        quickActionPrompts?: IdeaNodeQuickActionPrompts;
+      }>;
       source: IdeaNodeSource;
     }
-  | { type: "follow_direction"; nodeId: string }
+  | { type: "favorite_node"; nodeId: string }
+  | { type: "unfavorite_node"; nodeId: string }
   | { type: "park_node"; nodeId: string; reason?: string }
   | { type: "restore_node"; nodeId: string }
   | { type: "add_seed_thought"; title: string; description?: string }
   | { type: "edit_node"; nodeId: string; title?: string; description?: string }
+  | { type: "move_node"; nodeId: string; x: number; y: number }
+  | { type: "seed_root"; title: string; description?: string }
   | { type: "replace_state"; state: IdeaTreeState }
+  | { type: "rename_tree"; title: string }
   | { type: "undo_last_action" }
   | {
       type: "record_agent_run";
@@ -143,17 +174,40 @@ export type IdeaTreeReducerAction =
   | {
       type: "create_clear_version";
       summary: string;
-      currentDirection: string;
+      favoritedTitles: string[];
       parked: string[];
       uncertain: string;
       nextThought: string;
+      html: string;
     };
 
 const ROOT_X = 700;
 const ROOT_Y = 920;
 const CHILD_Y_STEP = 200;
-const CHILD_X_STEP = 280;
-const BRANCH_X = [-420, -140, 140, 420];
+// Card is 260px wide. Step must clear that plus a visual gap so siblings never
+// collapse onto each other. Wider trees just claim more horizontal room — the
+// canvas is pan/zoomable, so spreading wins over self-overlap.
+const CHILD_X_STEP = 320;
+
+export function createEmptyIdeaTreeState(treeId: string): IdeaTreeState {
+  const rootNodeId = `${treeId}:root`;
+
+  return {
+    treeId,
+    title: "",
+    rootNodeId,
+    focusedNodeId: rootNodeId,
+    actions: [],
+    agentRuns: [],
+    clearVersions: [],
+    edges: {},
+    nodes: {},
+  };
+}
+
+export function hasRoot(state: IdeaTreeState): boolean {
+  return Boolean(state.nodes[state.rootNodeId]);
+}
 
 export function createInitialIdeaTreeState(treeId: string, title: string): IdeaTreeState {
   const now = new Date().toISOString();
@@ -164,8 +218,6 @@ export function createInitialIdeaTreeState(treeId: string, title: string): IdeaT
     title,
     rootNodeId,
     focusedNodeId: rootNodeId,
-    currentDirectionNodeId: null,
-    basketNodeIds: [],
     actions: [],
     agentRuns: [],
     clearVersions: [],
@@ -176,9 +228,10 @@ export function createInitialIdeaTreeState(treeId: string, title: string): IdeaT
         treeId,
         parentId: null,
         title,
-        description: "从这里开始发散、剪枝，并沿一条方向继续想清楚。",
+        description: "从这里开始发散、收藏、放一边，多条方向可以并行长下去。",
         source: "user",
         status: "active",
+        favorited: false,
         x: ROOT_X,
         y: ROOT_Y,
         createdAt: now,
@@ -201,12 +254,17 @@ export function ideaTreeReducer(
       const existingChildren = Object.values(state.nodes).filter(
         (node) => node.parentId === parent.id,
       );
+      const totalChildren = existingChildren.length + reducerAction.ideas.length;
+      const offsets = computeChildXOffsets(parent, totalChildren);
+
+      const repositionedExisting = existingChildren.map((node, index) => ({
+        ...node,
+        x: parent.x + offsets[index],
+        updatedAt: now,
+      }));
+
       const createdNodes = reducerAction.ideas.map((idea, index) => {
-        const childIndex = existingChildren.length + index;
-        const useFixedSlots = reducerAction.ideas.length === 4 && existingChildren.length === 0;
-        const xOffset = useFixedSlots
-          ? BRANCH_X[index] ?? (index - (reducerAction.ideas.length - 1) / 2) * CHILD_X_STEP
-          : (childIndex - (reducerAction.ideas.length - 1) / 2) * CHILD_X_STEP;
+        const siblingIndex = existingChildren.length + index;
         const id = `${parent.id}:idea-${state.actions.length + 1}-${index + 1}`;
 
         return {
@@ -217,10 +275,12 @@ export function ideaTreeReducer(
           description: idea.description,
           source: reducerAction.source,
           status: "active" as const,
-          x: parent.x + xOffset,
+          favorited: false,
+          x: parent.x + offsets[siblingIndex],
           y: parent.y - CHILD_Y_STEP,
           createdAt: now,
           updatedAt: now,
+          quickActionPrompts: idea.quickActionPrompts,
         };
       });
       const createdEdges = createdNodes.map((node) => ({
@@ -237,6 +297,7 @@ export function ideaTreeReducer(
         focusedNodeId: createdNodes[0]?.id ?? state.focusedNodeId,
         nodes: {
           ...state.nodes,
+          ...Object.fromEntries(repositionedExisting.map((node) => [node.id, node])),
           ...Object.fromEntries(createdNodes.map((node) => [node.id, node])),
         },
         edges: {
@@ -258,38 +319,87 @@ export function ideaTreeReducer(
       };
     }
 
-    case "follow_direction": {
-      const node = state.nodes[reducerAction.nodeId];
-      if (!node || node.status === "parked") return state;
+    case "seed_root": {
+      if (state.nodes[state.rootNodeId]) return state;
+      const title = reducerAction.title.trim();
+      if (!title) return state;
 
       const now = new Date().toISOString();
-      const nodes = Object.fromEntries(
-        Object.values(state.nodes).map((item) => [
-          item.id,
-          {
-            ...item,
-            status:
-              item.id === node.id
-                ? ("current" as const)
-                : item.status === "current"
-                  ? ("active" as const)
-                  : item.status,
-            updatedAt: item.id === node.id ? now : item.updatedAt,
-          },
-        ]),
-      );
+      const rootNode: IdeaNode = {
+        id: state.rootNodeId,
+        treeId: state.treeId,
+        parentId: null,
+        title,
+        description: reducerAction.description?.trim() || undefined,
+        source: "user",
+        status: "active",
+        favorited: false,
+        x: ROOT_X,
+        y: ROOT_Y,
+        createdAt: now,
+        updatedAt: now,
+      };
 
       return {
         ...state,
-        focusedNodeId: node.id,
-        currentDirectionNodeId: node.id,
-        nodes,
+        title,
+        focusedNodeId: state.rootNodeId,
+        nodes: { [state.rootNodeId]: rootNode },
         actions: [
           ...state.actions,
           {
             id: nextActionId(state),
             treeId: state.treeId,
-            type: "follow_direction",
+            type: "seed_root",
+            nodeId: state.rootNodeId,
+            title,
+            createdAt: now,
+          },
+        ],
+      };
+    }
+
+    case "favorite_node": {
+      const node = state.nodes[reducerAction.nodeId];
+      if (!node || node.favorited) return state;
+
+      const now = new Date().toISOString();
+      return {
+        ...state,
+        nodes: {
+          ...state.nodes,
+          [node.id]: { ...node, favorited: true, updatedAt: now },
+        },
+        actions: [
+          ...state.actions,
+          {
+            id: nextActionId(state),
+            treeId: state.treeId,
+            type: "favorite_node",
+            nodeId: node.id,
+            createdAt: now,
+          },
+        ],
+      };
+    }
+
+    case "unfavorite_node": {
+      const node = state.nodes[reducerAction.nodeId];
+      if (!node || !node.favorited) return state;
+
+      const now = new Date().toISOString();
+      return {
+        ...state,
+        nodes: {
+          ...state.nodes,
+          [node.id]: { ...node, favorited: false, updatedAt: now },
+        },
+        actions: [
+          ...state.actions,
+          {
+            id: nextActionId(state),
+            treeId: state.treeId,
+            type: "unfavorite_node",
             nodeId: node.id,
             createdAt: now,
           },
@@ -300,16 +410,11 @@ export function ideaTreeReducer(
     case "park_node": {
       const node = state.nodes[reducerAction.nodeId];
       if (!node || node.id === state.rootNodeId) return state;
+      if (node.status === "parked") return state;
 
       const now = new Date().toISOString();
       return {
         ...state,
-        currentDirectionNodeId:
-          state.currentDirectionNodeId === node.id ? null : state.currentDirectionNodeId,
-        focusedNodeId: node.parentId ?? state.rootNodeId,
-        basketNodeIds: state.basketNodeIds.includes(node.id)
-          ? state.basketNodeIds
-          : [...state.basketNodeIds, node.id],
         nodes: {
           ...state.nodes,
           [node.id]: {
@@ -334,13 +439,12 @@ export function ideaTreeReducer(
 
     case "restore_node": {
       const node = state.nodes[reducerAction.nodeId];
-      if (!node) return state;
+      if (!node || node.status === "active") return state;
 
       const now = new Date().toISOString();
       return {
         ...state,
         focusedNodeId: node.id,
-        basketNodeIds: state.basketNodeIds.filter((id) => id !== node.id),
         nodes: {
           ...state.nodes,
           [node.id]: {
@@ -363,7 +467,7 @@ export function ideaTreeReducer(
     }
 
     case "add_seed_thought": {
-      const targetNodeId = state.currentDirectionNodeId ?? state.focusedNodeId ?? state.rootNodeId;
+      const targetNodeId = state.focusedNodeId ?? state.rootNodeId;
       return ideaTreeReducer(state, {
         type: "grow_from_node",
         nodeId: targetNodeId,
@@ -418,6 +522,30 @@ export function ideaTreeReducer(
       return reducerAction.state;
     }
 
+    case "rename_tree": {
+      const next = reducerAction.title.trim();
+      if (next === state.title) return state;
+      return { ...state, title: next };
+    }
+
+    case "move_node": {
+      const node = state.nodes[reducerAction.nodeId];
+      if (!node) return state;
+      if (node.x === reducerAction.x && node.y === reducerAction.y) return state;
+      return {
+        ...state,
+        nodes: {
+          ...state.nodes,
+          [node.id]: {
+            ...node,
+            x: reducerAction.x,
+            y: reducerAction.y,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      };
+    }
+
     case "undo_last_action": {
       const action = state.actions.at(-1);
       if (!action) return state;
@@ -447,11 +575,32 @@ export function ideaTreeReducer(
           edges,
           actions,
           focusedNodeId: action.nodeId,
-          currentDirectionNodeId:
-            state.currentDirectionNodeId && idsToRemove.has(state.currentDirectionNodeId)
-              ? null
-              : state.currentDirectionNodeId,
-          basketNodeIds: state.basketNodeIds.filter((id) => !idsToRemove.has(id)),
+        };
+      }
+
+      if (action.type === "favorite_node") {
+        const node = state.nodes[action.nodeId];
+        if (!node) return { ...state, actions };
+        return {
+          ...state,
+          actions,
+          nodes: {
+            ...state.nodes,
+            [node.id]: { ...node, favorited: false, updatedAt: new Date().toISOString() },
+          },
+        };
+      }
+
+      if (action.type === "unfavorite_node") {
+        const node = state.nodes[action.nodeId];
+        if (!node) return { ...state, actions };
+        return {
+          ...state,
+          actions,
+          nodes: {
+            ...state.nodes,
+            [node.id]: { ...node, favorited: true, updatedAt: new Date().toISOString() },
+          },
         };
       }
 
@@ -463,7 +612,6 @@ export function ideaTreeReducer(
           ...state,
           actions,
           focusedNodeId: node.id,
-          basketNodeIds: state.basketNodeIds.filter((id) => id !== node.id),
           nodes: {
             ...state.nodes,
             [node.id]: {
@@ -483,9 +631,6 @@ export function ideaTreeReducer(
           ...state,
           actions,
           focusedNodeId: node.parentId ?? state.rootNodeId,
-          basketNodeIds: state.basketNodeIds.includes(node.id)
-            ? state.basketNodeIds
-            : [...state.basketNodeIds, node.id],
           nodes: {
             ...state.nodes,
             [node.id]: {
@@ -525,6 +670,17 @@ export function ideaTreeReducer(
         };
       }
 
+      if (action.type === "seed_root") {
+        return {
+          ...state,
+          actions,
+          title: "",
+          focusedNodeId: state.rootNodeId,
+          nodes: {},
+          edges: {},
+        };
+      }
+
       return {
         ...state,
         actions,
@@ -558,10 +714,11 @@ export function ideaTreeReducer(
         treeId: state.treeId,
         createdAt: now,
         summary: reducerAction.summary,
-        currentDirection: reducerAction.currentDirection,
+        favoritedTitles: reducerAction.favoritedTitles,
         parked: reducerAction.parked,
         uncertain: reducerAction.uncertain,
         nextThought: reducerAction.nextThought,
+        html: reducerAction.html,
       };
 
       return {
@@ -591,50 +748,55 @@ export function getIdeaEdges(state: IdeaTreeState): IdeaEdge[] {
 }
 
 export function getParkedNodes(state: IdeaTreeState): IdeaNode[] {
-  return state.basketNodeIds
-    .map((id) => state.nodes[id])
-    .filter((node): node is IdeaNode => Boolean(node));
+  return Object.values(state.nodes).filter((node) => node.status === "parked");
+}
+
+export function getFavoritedNodes(state: IdeaTreeState): IdeaNode[] {
+  return Object.values(state.nodes).filter((node) => node.favorited);
 }
 
 export function canGenerateClearVersion(state: IdeaTreeState): boolean {
-  return Boolean(
-    state.currentDirectionNodeId &&
-      state.basketNodeIds.length > 0 &&
-      state.actions.some((action) => action.type === "grow_from_node"),
+  return (
+    state.actions.some((action) => action.type === "grow_from_node") &&
+    Object.values(state.nodes).some((node) => node.favorited)
   );
 }
 
-export function getDriftNodeIds(state: IdeaTreeState): Set<string> {
-  if (!state.currentDirectionNodeId) return new Set();
+export function getLayerByNodeId(state: IdeaTreeState): Map<string, number> {
+  const layers = new Map<string, number>();
+  const nodes = state.nodes;
 
-  const onPath = new Set<string>();
-  let cursor: IdeaNode | undefined = state.nodes[state.currentDirectionNodeId];
-  while (cursor) {
-    onPath.add(cursor.id);
-    cursor = cursor.parentId ? state.nodes[cursor.parentId] : undefined;
-  }
-
-  const drift = new Set<string>();
-  for (const node of Object.values(state.nodes)) {
-    if (onPath.has(node.id)) continue;
-    if (node.parentId && onPath.has(node.parentId)) drift.add(node.id);
-  }
-
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const node of Object.values(state.nodes)) {
-      if (drift.has(node.id)) continue;
-      if (node.parentId && drift.has(node.parentId)) {
-        drift.add(node.id);
-        changed = true;
-      }
+  function layerFor(id: string): number {
+    const cached = layers.get(id);
+    if (cached !== undefined) return cached;
+    const node = nodes[id];
+    if (!node || !node.parentId) {
+      layers.set(id, 0);
+      return 0;
     }
+    const value = layerFor(node.parentId) + 1;
+    layers.set(id, value);
+    return value;
   }
 
-  return drift;
+  for (const id of Object.keys(nodes)) {
+    layerFor(id);
+  }
+  return layers;
 }
 
 function nextActionId(state: IdeaTreeState): string {
   return `${state.treeId}:action-${state.actions.length + 1}`;
+}
+
+export function computeChildXOffsets(
+  parent: IdeaNode,
+  totalChildren: number,
+): number[] {
+  if (totalChildren <= 0) return [];
+  if (totalChildren === 1) return [0];
+
+  const step = CHILD_X_STEP;
+  const start = -((totalChildren - 1) / 2) * step;
+  return Array.from({ length: totalChildren }, (_, i) => start + i * step);
 }

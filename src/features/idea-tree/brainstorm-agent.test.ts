@@ -13,7 +13,7 @@ import {
 } from "./idea-tree-reducer";
 
 describe("brainstorm agent request builder", () => {
-  test("builds tree context without active growth access to parked basket ideas", () => {
+  test("builds tree context that separates favorited from parked nodes", () => {
     let state = createInitialIdeaTreeState("agent-context-1", "一个模糊的研究选题");
     state = ideaTreeReducer(state, {
       type: "grow_from_node",
@@ -22,10 +22,15 @@ describe("brainstorm agent request builder", () => {
       source: "ai",
     });
     const parked = getActiveNodes(state).find((node) => node.title === "查公开资料");
+    const favored = getActiveNodes(state).find((node) => node.title === "先做深访");
     state = ideaTreeReducer(state, {
       type: "park_node",
       nodeId: parked!.id,
       reason: "现在不想先查资料",
+    });
+    state = ideaTreeReducer(state, {
+      type: "favorite_node",
+      nodeId: favored!.id,
     });
 
     const context = buildBrainstormAgentContext({
@@ -36,14 +41,18 @@ describe("brainstorm agent request builder", () => {
     });
 
     expect(context.activeNodes.map((node) => node.title)).not.toContain("查公开资料");
-    expect(context.ideaBasket.map((node) => node.title)).toEqual(["查公开资料"]);
-    expect(context.rules).toContain("idea_basket_is_not_active_context");
+    expect(context.parkedNodes.map((node) => node.title)).toEqual(["查公开资料"]);
+    expect(context.favoritedNodes.map((node) => node.title)).toEqual(["先做深访"]);
+    expect(context.rules).toContain("parked_nodes_are_not_active_context");
+    expect(context.rules).toContain("favorited_nodes_are_user_endorsed_directions");
   });
 
   test("keeps the agent framed as a brainstorm partner, not a PRD generator", () => {
     expect(BRAINSTORM_AGENT_SYSTEM_PROMPT).toContain("Brainstorm 思考伙伴");
     expect(BRAINSTORM_AGENT_SYSTEM_PROMPT).toContain("不要默认生成 PRD");
     expect(BRAINSTORM_AGENT_SYSTEM_PROMPT).toContain("结构化操作");
+    expect(BRAINSTORM_AGENT_SYSTEM_PROMPT).toContain("收藏");
+    expect(BRAINSTORM_AGENT_SYSTEM_PROMPT).not.toContain("沿某条方向继续");
   });
 
   test("enables OpenAI web search only when the request asks for external material", () => {

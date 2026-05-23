@@ -44,10 +44,10 @@ The Brainstorm Agent uses OpenAI only from the server route. Keep secrets in `.e
 
 ```bash
 OPENAI_API_KEY=...
-OPENAI_AGENT_MODEL=gpt-5.2
+OPENAI_AGENT_MODEL=gpt-5.5
 ```
 
-`OPENAI_AGENT_MODEL` is optional. The default is `gpt-5.2`.
+`OPENAI_AGENT_MODEL` is optional. The default is `gpt-5.5`.
 
 OpenAI web search is available through the Responses API tool and is only enabled when the client asks for external material, such as cases, research, facts, market references, or trends.
 

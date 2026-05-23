@@ -4,7 +4,9 @@ import {
   canGenerateClearVersion,
   createInitialIdeaTreeState,
   getActiveNodes,
+  getFavoritedNodes,
   getIdeaEdges,
+  getLayerByNodeId,
   getParkedNodes,
   ideaTreeReducer,
 } from "./idea-tree-reducer";
@@ -39,7 +41,7 @@ describe("ideaTreeReducer", () => {
     expect(next.actions.at(-1)?.type).toBe("grow_from_node");
   });
 
-  test("sets a node as the current direction without calling it a final decision", () => {
+  test("toggles favorited status with favorite_node and unfavorite_node", () => {
     const state = createInitialIdeaTreeState("seed-1", "一个模糊的活动主题");
     const grown = ideaTreeReducer(state, {
       type: "grow_from_node",
@@ -49,18 +51,24 @@ describe("ideaTreeReducer", () => {
     });
     const child = getActiveNodes(grown).find((node) => node.parentId === state.rootNodeId);
 
-    const next = ideaTreeReducer(grown, {
-      type: "follow_direction",
+    const favorited = ideaTreeReducer(grown, {
+      type: "favorite_node",
       nodeId: child!.id,
     });
+    expect(favorited.nodes[child!.id].favorited).toBe(true);
+    expect(getFavoritedNodes(favorited).map((n) => n.id)).toEqual([child!.id]);
+    expect(favorited.actions.at(-1)?.type).toBe("favorite_node");
 
-    expect(next.currentDirectionNodeId).toBe(child!.id);
-    expect(next.nodes[child!.id].status).toBe("current");
-    expect(next.nodes[state.rootNodeId].status).toBe("active");
-    expect(next.actions.at(-1)?.type).toBe("follow_direction");
+    const unfavorited = ideaTreeReducer(favorited, {
+      type: "unfavorite_node",
+      nodeId: child!.id,
+    });
+    expect(unfavorited.nodes[child!.id].favorited).toBe(false);
+    expect(getFavoritedNodes(unfavorited)).toHaveLength(0);
+    expect(unfavorited.actions.at(-1)?.type).toBe("unfavorite_node");
   });
 
-  test("parks a node in the idea basket and excludes it from active growth context", () => {
+  test("parks a node without adding it to a basket or losing focus", () => {
     const state = createInitialIdeaTreeState("seed-1", "一个模糊的创作方向");
     const grown = ideaTreeReducer(state, {
       type: "grow_from_node",
@@ -78,7 +86,7 @@ describe("ideaTreeReducer", () => {
 
     expect(getParkedNodes(next).map((node) => node.title)).toEqual(["做成短视频栏目"]);
     expect(getActiveNodes(next).map((node) => node.title)).not.toContain("做成短视频栏目");
-    expect(next.basketNodeIds).toEqual([nodeToPark!.id]);
+    expect(next.nodes[nodeToPark!.id].status).toBe("parked");
     expect(next.actions.at(-1)).toMatchObject({
       type: "park_node",
       nodeId: nodeToPark!.id,
@@ -86,7 +94,16 @@ describe("ideaTreeReducer", () => {
     });
   });
 
-  test("only allows a clear version after there is a current direction and a tradeoff", () => {
+  test("does not allow parking the root node", () => {
+    const state = createInitialIdeaTreeState("seed-1", "一个模糊的方向");
+    const next = ideaTreeReducer(state, {
+      type: "park_node",
+      nodeId: state.rootNodeId,
+    });
+    expect(next).toBe(state);
+  });
+
+  test("only allows a clear version after at least one growth and one favorite", () => {
     const state = createInitialIdeaTreeState("seed-1", "一个模糊的研究问题");
     expect(canGenerateClearVersion(state)).toBe(false);
 
@@ -96,13 +113,14 @@ describe("ideaTreeReducer", () => {
       ideas: [{ title: "从用户访谈开始" }, { title: "从公开资料开始" }],
       source: "ai",
     });
-    const [first, second] = getActiveNodes(grown).filter((node) => node.parentId === state.rootNodeId);
-    const followed = ideaTreeReducer(grown, { type: "follow_direction", nodeId: first.id });
+    expect(canGenerateClearVersion(grown)).toBe(false);
 
-    expect(canGenerateClearVersion(followed)).toBe(false);
-
-    const parked = ideaTreeReducer(followed, { type: "park_node", nodeId: second.id });
-    expect(canGenerateClearVersion(parked)).toBe(true);
+    const [first] = getActiveNodes(grown).filter((node) => node.parentId === state.rootNodeId);
+    const favorited = ideaTreeReducer(grown, {
+      type: "favorite_node",
+      nodeId: first.id,
+    });
+    expect(canGenerateClearVersion(favorited)).toBe(true);
   });
 
   test("replaces state when a saved local tree is loaded", () => {
@@ -137,7 +155,7 @@ describe("ideaTreeReducer", () => {
     expect(undone.focusedNodeId).toBe(state.rootNodeId);
   });
 
-  test("undoes parking by restoring the idea from the basket", () => {
+  test("undoes parking by flipping the status back to active", () => {
     let state = createInitialIdeaTreeState("seed-1", "一个模糊的活动主题");
     state = ideaTreeReducer(state, {
       type: "grow_from_node",
@@ -151,7 +169,23 @@ describe("ideaTreeReducer", () => {
     const undone = ideaTreeReducer(state, { type: "undo_last_action" });
 
     expect(undone.nodes[child!.id].status).toBe("active");
-    expect(undone.basketNodeIds).toEqual([]);
+    expect(undone.actions.at(-1)?.type).toBe("grow_from_node");
+  });
+
+  test("undoes favorite by flipping favorited back to false", () => {
+    let state = createInitialIdeaTreeState("seed-1", "一个模糊的方向");
+    state = ideaTreeReducer(state, {
+      type: "grow_from_node",
+      nodeId: state.rootNodeId,
+      ideas: [{ title: "线下互动" }],
+      source: "ai",
+    });
+    const child = getActiveNodes(state).find((node) => node.title === "线下互动");
+    state = ideaTreeReducer(state, { type: "favorite_node", nodeId: child!.id });
+    expect(state.nodes[child!.id].favorited).toBe(true);
+
+    const undone = ideaTreeReducer(state, { type: "undo_last_action" });
+    expect(undone.nodes[child!.id].favorited).toBe(false);
     expect(undone.actions.at(-1)?.type).toBe("grow_from_node");
   });
 
@@ -174,7 +208,7 @@ describe("ideaTreeReducer", () => {
       type: "edit_node",
       nodeId: state.rootNodeId,
       previousTitle: "一个模糊的命名方向",
-      previousDescription: "从这里开始发散、剪枝，并沿一条方向继续想清楚。",
+      previousDescription: "从这里开始发散、收藏、放一边，多条方向可以并行长下去。",
       nextTitle: "更清楚的命名方向",
       nextDescription: "先用更短的表达继续发散。",
     });
@@ -184,9 +218,32 @@ describe("ideaTreeReducer", () => {
     expect(undone.title).toBe("一个模糊的命名方向");
     expect(undone.nodes[state.rootNodeId]).toMatchObject({
       title: "一个模糊的命名方向",
-      description: "从这里开始发散、剪枝，并沿一条方向继续想清楚。",
+      description: "从这里开始发散、收藏、放一边，多条方向可以并行长下去。",
     });
     expect(undone.actions).toHaveLength(0);
+  });
+
+  test("computes node layer depth via getLayerByNodeId", () => {
+    const state = createInitialIdeaTreeState("seed-1", "根想法");
+    const grown = ideaTreeReducer(state, {
+      type: "grow_from_node",
+      nodeId: state.rootNodeId,
+      ideas: [{ title: "子-1" }],
+      source: "ai",
+    });
+    const child = getActiveNodes(grown).find((node) => node.title === "子-1")!;
+    const grandgrown = ideaTreeReducer(grown, {
+      type: "grow_from_node",
+      nodeId: child.id,
+      ideas: [{ title: "孙-1" }],
+      source: "ai",
+    });
+    const grandchild = getActiveNodes(grandgrown).find((node) => node.title === "孙-1")!;
+
+    const layers = getLayerByNodeId(grandgrown);
+    expect(layers.get(state.rootNodeId)).toBe(0);
+    expect(layers.get(child.id)).toBe(1);
+    expect(layers.get(grandchild.id)).toBe(2);
   });
 
   test("records an agent run separately from user-visible brainstorm actions", () => {
