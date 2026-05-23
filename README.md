@@ -28,8 +28,9 @@ Open [http://localhost:3024](http://localhost:3024).
 - `src/features/idea-tree/brainstorm-agent.ts` builds the OpenAI Agent prompt, context, and structured output request.
 - `src/features/idea-tree/apply-agent-operations.ts` executes only whitelisted Agent operations against the reducer.
 - `src/app/api/agent/run/route.ts` is the server-side OpenAI boundary.
-- `public/brainstorm/` keeps the original static prototype assets for reference only.
 - `src/app/layout.tsx` defines app metadata and the root document shell.
+
+The old static BrainstormAssist prototype has been removed from the runnable app. The Eazo import should use the Next/React workspace directly, not an iframe or runtime-Babel page.
 
 ## Eazo Environment
 
