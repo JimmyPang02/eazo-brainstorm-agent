@@ -66,6 +66,7 @@ The brainstorm session data is local-first and stored in browser IndexedDB. Ther
 bun run check
 bun run test:e2e
 bun run smoke:openai
+bun run smoke:ui-openai
 ```
 
 `bun run check` expands to:
@@ -80,3 +81,5 @@ bun run build
 `bun run test:e2e` runs Playwright against a production build and mocks the Agent route, so it does not require a live OpenAI key.
 
 `bun run smoke:openai` calls the real OpenAI Brainstorm Agent once with a tiny local Idea Tree and prints only a sanitized summary: operation types, applied operations, active node titles, and clear-version count. It is intentionally not part of CI because it requires a live secret and account quota. If it exits with a quota/rate-limit message, the code path reached OpenAI but the configured key needs billing/quota attention or replacement.
+
+`bun run smoke:ui-openai` launches the production app through Playwright, clicks the real UI, waits for `/api/agent/run`, verifies the Agent returns `create_nodes`, checks the visible tree updates, and reloads to confirm the IndexedDB state persists. It also requires a live `OPENAI_API_KEY`, so it is not part of CI.
