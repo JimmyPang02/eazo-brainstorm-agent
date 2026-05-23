@@ -149,10 +149,11 @@ export type IdeaTreeReducerAction =
       nextThought: string;
     };
 
-const ROOT_X = 480;
-const ROOT_Y = 520;
-const CHILD_Y_STEP = 176;
-const CHILD_X_STEP = 260;
+const ROOT_X = 700;
+const ROOT_Y = 920;
+const CHILD_Y_STEP = 200;
+const CHILD_X_STEP = 280;
+const BRANCH_X = [-420, -140, 140, 420];
 
 export function createInitialIdeaTreeState(treeId: string, title: string): IdeaTreeState {
   const now = new Date().toISOString();
@@ -202,7 +203,10 @@ export function ideaTreeReducer(
       );
       const createdNodes = reducerAction.ideas.map((idea, index) => {
         const childIndex = existingChildren.length + index;
-        const offset = childIndex - (reducerAction.ideas.length - 1) / 2;
+        const useFixedSlots = reducerAction.ideas.length === 4 && existingChildren.length === 0;
+        const xOffset = useFixedSlots
+          ? BRANCH_X[index] ?? (index - (reducerAction.ideas.length - 1) / 2) * CHILD_X_STEP
+          : (childIndex - (reducerAction.ideas.length - 1) / 2) * CHILD_X_STEP;
         const id = `${parent.id}:idea-${state.actions.length + 1}-${index + 1}`;
 
         return {
@@ -213,7 +217,7 @@ export function ideaTreeReducer(
           description: idea.description,
           source: reducerAction.source,
           status: "active" as const,
-          x: parent.x + offset * CHILD_X_STEP,
+          x: parent.x + xOffset,
           y: parent.y - CHILD_Y_STEP,
           createdAt: now,
           updatedAt: now,
@@ -598,6 +602,37 @@ export function canGenerateClearVersion(state: IdeaTreeState): boolean {
       state.basketNodeIds.length > 0 &&
       state.actions.some((action) => action.type === "grow_from_node"),
   );
+}
+
+export function getDriftNodeIds(state: IdeaTreeState): Set<string> {
+  if (!state.currentDirectionNodeId) return new Set();
+
+  const onPath = new Set<string>();
+  let cursor: IdeaNode | undefined = state.nodes[state.currentDirectionNodeId];
+  while (cursor) {
+    onPath.add(cursor.id);
+    cursor = cursor.parentId ? state.nodes[cursor.parentId] : undefined;
+  }
+
+  const drift = new Set<string>();
+  for (const node of Object.values(state.nodes)) {
+    if (onPath.has(node.id)) continue;
+    if (node.parentId && onPath.has(node.parentId)) drift.add(node.id);
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const node of Object.values(state.nodes)) {
+      if (drift.has(node.id)) continue;
+      if (node.parentId && drift.has(node.parentId)) {
+        drift.add(node.id);
+        changed = true;
+      }
+    }
+  }
+
+  return drift;
 }
 
 function nextActionId(state: IdeaTreeState): string {

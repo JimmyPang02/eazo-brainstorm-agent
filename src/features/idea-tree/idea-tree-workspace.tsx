@@ -12,6 +12,7 @@ import {
   canGenerateClearVersion,
   createInitialIdeaTreeState,
   getActiveNodes,
+  getDriftNodeIds,
   getIdeaEdges,
   getParkedNodes,
   ideaTreeReducer,
@@ -123,6 +124,7 @@ export function IdeaTreeWorkspace() {
   const edges = useMemo(() => getIdeaEdges(state), [state]);
   const activeNodes = useMemo(() => getActiveNodes(state), [state]);
   const parkedNodes = useMemo(() => getParkedNodes(state), [state]);
+  const driftNodeIds = useMemo(() => getDriftNodeIds(state), [state]);
   const focusedNode = focusedNodeId ? state.nodes[focusedNodeId] : null;
   const currentDirection = state.currentDirectionNodeId
     ? state.nodes[state.currentDirectionNodeId]
@@ -287,6 +289,7 @@ export function IdeaTreeWorkspace() {
         <IdeaTreeCanvas
           nodes={nodes}
           edges={edges}
+          driftNodeIds={driftNodeIds}
           focusedNode={focusedNode}
           focusedNodeId={focusedNodeId}
           currentDirectionNodeId={state.currentDirectionNodeId}
