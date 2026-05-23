@@ -1,4 +1,4 @@
-# Sprout Brainstorm Assistant 17:54 for Eazo
+# eazo-brainstorm-agent
 
 This is a separate Eazo Creator Next.js app that hosts the 17:54 version of the Sprout tree-shaped brainstorming prototype.
 
@@ -32,4 +32,4 @@ Copy `.env.example` to `.env` and set `EAZO_PRIVATE_KEY` if the app uses authent
 cp .env.example .env
 ```
 
-The current prototype UI runs without server-side auth configuration and does not connect to OpenAI yet.
+The current prototype UI runs without server-side auth configuration and does not call OpenAI yet. Keep any future `OPENAI_API_KEY` in `.env.local`; it is ignored by Git.
