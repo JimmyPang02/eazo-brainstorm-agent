@@ -123,7 +123,8 @@ export function buildBrainstormQuickActionRequest(
         allowWebSearch: false,
         userMessage: [
           "检查当前树里有没有重复、相近或可以合并的想法。",
-          "不要删除节点；如果要调整文字，只能给改写建议或追问。",
+          "如果有明确候选，请优先用 propose_node_merge 输出合并建议；不要删除节点。",
+          "如果要调整文字，只能给改写建议或追问。",
           "不要生成 PRD。",
           basketRule,
         ].join(" "),

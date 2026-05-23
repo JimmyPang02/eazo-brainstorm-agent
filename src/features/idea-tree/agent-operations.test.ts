@@ -23,10 +23,17 @@ describe("Brainstorm agent operation schema", () => {
           nodeId: "node-1",
           question: "这个方向最想保留的感觉是什么？",
         },
+        {
+          type: "propose_node_merge",
+          nodeIds: ["node-2", "node-3"],
+          title: "内容场景角度",
+          description: "两个节点都在说从内容使用场景重新理解这个想法。",
+          reason: "它们表达接近，可以作为一个更清楚的方向继续长。",
+        },
       ],
     });
 
-    expect(parsed.operations).toHaveLength(2);
+    expect(parsed.operations).toHaveLength(3);
     expect(parsed.operations[0].type).toBe("create_nodes");
   });
 
@@ -49,6 +56,7 @@ describe("Brainstorm agent operation schema", () => {
           nodeId: "",
           ideas: [{ title: "换个角度", description: "" }],
           question: "",
+          nodeIds: [],
           title: "",
           description: "",
           reason: "从当前节点继续发散",
@@ -64,6 +72,7 @@ describe("Brainstorm agent operation schema", () => {
           nodeId: "node-1",
           ideas: [],
           question: "这个方向最想保留什么？",
+          nodeIds: [],
           title: "",
           description: "",
           reason: "",
@@ -91,6 +100,40 @@ describe("Brainstorm agent operation schema", () => {
     ]);
   });
 
+  test("normalizes flat model merge proposals without mutating nodes", () => {
+    const normalized = normalizeBrainstormAgentResponse({
+      message: "这两个节点可以先合并成一个候选方向。",
+      operations: [
+        {
+          type: "propose_node_merge",
+          parentNodeId: "",
+          nodeId: "",
+          ideas: [],
+          question: "",
+          nodeIds: ["node-2", "node-3"],
+          title: "更聚焦的候选方向",
+          description: "把两个相近表达合成一个更短的继续方向。",
+          reason: "它们都在表达同一个思考分支。",
+          summary: "",
+          currentDirection: "",
+          parked: [],
+          uncertain: "",
+          nextThought: "",
+        },
+      ],
+    });
+
+    expect(normalized.operations).toEqual([
+      {
+        type: "propose_node_merge",
+        nodeIds: ["node-2", "node-3"],
+        title: "更聚焦的候选方向",
+        description: "把两个相近表达合成一个更短的继续方向。",
+        reason: "它们都在表达同一个思考分支。",
+      },
+    ]);
+  });
+
   test("rejects flat model operations missing required fields for their type", () => {
     expect(() =>
       normalizeBrainstormAgentResponse({
@@ -102,6 +145,7 @@ describe("Brainstorm agent operation schema", () => {
             nodeId: "",
             ideas: [],
             question: "",
+            nodeIds: [],
             title: "",
             description: "",
             reason: "",

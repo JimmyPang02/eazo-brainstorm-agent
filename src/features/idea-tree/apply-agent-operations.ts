@@ -19,6 +19,13 @@ export type AgentContextCard =
       reason: string;
     }
   | {
+      type: "node_merge_suggestion";
+      nodeIds: string[];
+      title: string;
+      description: string;
+      reason: string;
+    }
+  | {
       type: "clear_version_draft";
       summary: string;
       currentDirection: string;
@@ -143,6 +150,23 @@ export function applyAgentResponseToIdeaTree(
         cards.push({
           type: "node_edit_suggestion",
           nodeId: operation.nodeId,
+          title: operation.title,
+          description: operation.description,
+          reason: operation.reason,
+        });
+        appliedOperations.push(operation.type);
+        break;
+      }
+
+      case "propose_node_merge": {
+        if (operation.nodeIds.some((nodeId) => !nextState.nodes[nodeId])) {
+          ignoredOperations.push(operation.type);
+          break;
+        }
+
+        cards.push({
+          type: "node_merge_suggestion",
+          nodeIds: operation.nodeIds,
           title: operation.title,
           description: operation.description,
           reason: operation.reason,

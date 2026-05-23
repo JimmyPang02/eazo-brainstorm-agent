@@ -65,6 +65,16 @@ export const ProposeNodeEditOperationSchema = z
   })
   .strict();
 
+export const ProposeNodeMergeOperationSchema = z
+  .object({
+    type: z.literal("propose_node_merge"),
+    nodeIds: z.array(z.string().min(1)).min(2).max(5),
+    title: z.string().min(1).max(80),
+    description: z.string().min(1).max(240),
+    reason: z.string().min(1).max(240),
+  })
+  .strict();
+
 export const CreateClearVersionOperationSchema = z
   .object({
     type: z.literal("create_clear_version"),
@@ -83,6 +93,7 @@ export const BrainstormAgentOperationSchema = z.discriminatedUnion("type", [
   ParkNodeOperationSchema,
   RestoreNodeOperationSchema,
   ProposeNodeEditOperationSchema,
+  ProposeNodeMergeOperationSchema,
   CreateClearVersionOperationSchema,
 ]);
 
@@ -100,6 +111,7 @@ const ModelOperationTypeSchema = z.enum([
   "park_node",
   "restore_node",
   "propose_node_edit",
+  "propose_node_merge",
   "create_clear_version",
 ]);
 
@@ -108,6 +120,7 @@ export const BrainstormAgentModelOperationSchema = z
     type: ModelOperationTypeSchema,
     parentNodeId: z.string().max(200),
     nodeId: z.string().max(200),
+    nodeIds: z.array(z.string().max(200)).max(5),
     ideas: z.array(ModelIdeaTextSchema).max(5),
     question: z.string().max(180),
     title: z.string().max(80),
@@ -184,6 +197,15 @@ export function normalizeBrainstormAgentResponse(
             reason: requireField(operation.reason, "reason"),
           };
 
+        case "propose_node_merge":
+          return {
+            type: "propose_node_merge",
+            nodeIds: requireNodeIds(operation.nodeIds),
+            title: requireField(operation.title, "title"),
+            description: requireField(operation.description, "description"),
+            reason: requireField(operation.reason, "reason"),
+          };
+
         case "create_clear_version":
           return {
             type: "create_clear_version",
@@ -196,6 +218,15 @@ export function normalizeBrainstormAgentResponse(
       }
     }),
   });
+}
+
+function requireNodeIds(nodeIds: string[]): string[] {
+  const normalized = nodeIds.map((nodeId) => nodeId.trim()).filter(Boolean);
+  if (normalized.length < 2) {
+    throw new Error("Agent propose_node_merge operation needs at least two nodeIds.");
+  }
+
+  return normalized;
 }
 
 function requireField(value: string, fieldName: string): string {

@@ -30,6 +30,7 @@ export const BRAINSTORM_AGENT_SYSTEM_PROMPT = [
   "尊重想法篮子。已放一边的节点不属于主动发散上下文，除非用户明确恢复或点名。",
   "可以使用网络搜索补充外部素材，但只在用户需要案例、事实、趋势或反例时使用。搜索结果要变成 brainstorm 素材，不要变成报告。",
   "改写用户核心描述前，只能用 propose_node_edit 给建议，不要直接改原文。",
+  "发现重复或相近节点时，只能用 propose_node_merge 给合并建议，不要删除节点。",
   "输出必须符合结构化操作 schema，并给一段很短的 message 解释你在做什么。",
 ].join("\n");
 

@@ -77,6 +77,53 @@ describe("applyAgentResponseToIdeaTree", () => {
     ]);
   });
 
+  test("keeps proposed node merges as suggestion cards instead of deleting nodes", () => {
+    let state = createInitialIdeaTreeState("agent-apply-merge", "一个模糊的内容方向");
+    state = ideaTreeReducer(state, {
+      type: "grow_from_node",
+      nodeId: state.rootNodeId,
+      ideas: [
+        { title: "给创作者整理灵感" },
+        { title: "帮创作者收拢选题" },
+      ],
+      source: "ai",
+    });
+    const [first, second] = getActiveNodes(state).filter(
+      (node) => node.parentId === state.rootNodeId,
+    );
+    const response: BrainstormAgentResponse = {
+      message: "这两个节点接近，我先给合并建议。",
+      operations: [
+        {
+          type: "propose_node_merge",
+          nodeIds: [first.id, second.id],
+          title: "创作者灵感收拢",
+          description: "把整理灵感和收拢选题合成一个更明确的方向。",
+          reason: "两个节点都在说帮创作者从零散想法走向更清楚的选题。",
+        },
+      ],
+    };
+
+    const result = applyAgentResponseToIdeaTree(state, response);
+
+    expect(Object.values(result.state.nodes).map((node) => node.title)).toContain(
+      "给创作者整理灵感",
+    );
+    expect(Object.values(result.state.nodes).map((node) => node.title)).toContain(
+      "帮创作者收拢选题",
+    );
+    expect(result.cards).toEqual([
+      {
+        type: "node_merge_suggestion",
+        nodeIds: [first.id, second.id],
+        title: "创作者灵感收拢",
+        description: "把整理灵感和收拢选题合成一个更明确的方向。",
+        reason: "两个节点都在说帮创作者从零散想法走向更清楚的选题。",
+      },
+    ]);
+    expect(result.appliedOperations).toEqual(["propose_node_merge"]);
+  });
+
   test("does not let the agent grow from a parked idea basket node", () => {
     let state = createInitialIdeaTreeState("agent-apply-3", "一个模糊的研究方向");
     state = ideaTreeReducer(state, {

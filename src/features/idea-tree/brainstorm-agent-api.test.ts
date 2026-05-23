@@ -56,6 +56,7 @@ describe("handleBrainstormAgentRun", () => {
                   nodeId: state.rootNodeId,
                   ideas: [],
                   question: "这个名字最想给人什么感觉？",
+                  nodeIds: [],
                   title: "",
                   description: "",
                   reason: "",

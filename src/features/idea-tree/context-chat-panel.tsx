@@ -269,6 +269,19 @@ function AgentCard({ card }: { card: AgentContextCard }) {
     );
   }
 
+  if (card.type === "node_merge_suggestion") {
+    return (
+      <section className="rounded-2xl border border-[#355f4933] bg-[#eef4e8] p-4">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#53645a]">
+          合并建议
+        </div>
+        <h3 className="mt-2 text-sm font-semibold text-[#1d2520]">{card.title}</h3>
+        <p className="mt-2 text-xs leading-relaxed text-[#53645a]">{card.description}</p>
+        <p className="mt-2 text-xs leading-relaxed text-[#667168]">{card.reason}</p>
+      </section>
+    );
+  }
+
   return (
     <section className="rounded-2xl border border-[#3440371a] bg-white p-4">
       <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8b948c]">

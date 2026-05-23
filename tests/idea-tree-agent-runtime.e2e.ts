@@ -120,3 +120,44 @@ test("sends similar-case quick actions as web research requests", async ({ page 
   expect(userMessage).toContain("不要生成 PRD");
   await expect(page.getByText("你更想参考产品、内容还是活动案例？")).toBeVisible();
 });
+
+test("shows merge suggestion cards without deleting nodes", async ({ page }) => {
+  await page.route("**/api/agent/run", async (route) => {
+    const request = route.request().postDataJSON() as {
+      state: {
+        rootNodeId: string;
+        nodes: Record<string, { title: string; parentId: string | null }>;
+      };
+      userMessage: string;
+    };
+    const candidateIds = Object.entries(request.state.nodes)
+      .filter(([, node]) => node.parentId === request.state.rootNodeId)
+      .slice(0, 2)
+      .map(([id]) => id);
+
+    await route.fulfill({
+      json: {
+        ok: true,
+        response: {
+          message: "这两个节点可以先合成一个候选方向。",
+          operations: [
+            {
+              type: "propose_node_merge",
+              nodeIds: candidateIds,
+              title: "树状思考伙伴",
+              description: "把树形表达和节点动作合成一个更聚焦的方向。",
+              reason: "它们都在描述让想法通过节点操作变清楚。",
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "合并重复" }).click();
+
+  await expect(page.getByText("合并建议")).toBeVisible();
+  await expect(page.getByText("树状思考伙伴")).toBeVisible();
+  await expect(page.getByRole("button", { name: "节点只承载短想法片段" })).toBeVisible();
+});
