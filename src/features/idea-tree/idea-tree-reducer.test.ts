@@ -155,6 +155,40 @@ describe("ideaTreeReducer", () => {
     expect(undone.actions.at(-1)?.type).toBe("grow_from_node");
   });
 
+  test("edits a node only through an explicit action and supports undo", () => {
+    const state = createInitialIdeaTreeState("seed-1", "一个模糊的命名方向");
+
+    const edited = ideaTreeReducer(state, {
+      type: "edit_node",
+      nodeId: state.rootNodeId,
+      title: "更清楚的命名方向",
+      description: "先用更短的表达继续发散。",
+    });
+
+    expect(edited.title).toBe("更清楚的命名方向");
+    expect(edited.nodes[state.rootNodeId]).toMatchObject({
+      title: "更清楚的命名方向",
+      description: "先用更短的表达继续发散。",
+    });
+    expect(edited.actions.at(-1)).toMatchObject({
+      type: "edit_node",
+      nodeId: state.rootNodeId,
+      previousTitle: "一个模糊的命名方向",
+      previousDescription: "从这里开始发散、剪枝，并沿一条方向继续想清楚。",
+      nextTitle: "更清楚的命名方向",
+      nextDescription: "先用更短的表达继续发散。",
+    });
+
+    const undone = ideaTreeReducer(edited, { type: "undo_last_action" });
+
+    expect(undone.title).toBe("一个模糊的命名方向");
+    expect(undone.nodes[state.rootNodeId]).toMatchObject({
+      title: "一个模糊的命名方向",
+      description: "从这里开始发散、剪枝，并沿一条方向继续想清楚。",
+    });
+    expect(undone.actions).toHaveLength(0);
+  });
+
   test("records an agent run separately from user-visible brainstorm actions", () => {
     const state = createInitialIdeaTreeState("seed-1", "一个模糊的研究方向");
 

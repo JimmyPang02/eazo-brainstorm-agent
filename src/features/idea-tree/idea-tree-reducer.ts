@@ -66,6 +66,17 @@ export type BrainstormAction =
   | {
       id: string;
       treeId: string;
+      type: "edit_node";
+      nodeId: string;
+      previousTitle: string;
+      previousDescription?: string;
+      nextTitle: string;
+      nextDescription?: string;
+      createdAt: string;
+    }
+  | {
+      id: string;
+      treeId: string;
       type: "create_clear_version";
       clearVersionId: string;
       createdAt: string;
@@ -118,6 +129,7 @@ export type IdeaTreeReducerAction =
   | { type: "park_node"; nodeId: string; reason?: string }
   | { type: "restore_node"; nodeId: string }
   | { type: "add_seed_thought"; title: string; description?: string }
+  | { type: "edit_node"; nodeId: string; title?: string; description?: string }
   | { type: "replace_state"; state: IdeaTreeState }
   | { type: "undo_last_action" }
   | {
@@ -356,6 +368,48 @@ export function ideaTreeReducer(
       });
     }
 
+    case "edit_node": {
+      const node = state.nodes[reducerAction.nodeId];
+      if (!node) return state;
+
+      const now = new Date().toISOString();
+      const nextTitle = reducerAction.title?.trim() || node.title;
+      const nextDescription =
+        reducerAction.description === undefined ? node.description : reducerAction.description;
+
+      if (nextTitle === node.title && nextDescription === node.description) {
+        return state;
+      }
+
+      return {
+        ...state,
+        title: node.id === state.rootNodeId ? nextTitle : state.title,
+        nodes: {
+          ...state.nodes,
+          [node.id]: {
+            ...node,
+            title: nextTitle,
+            description: nextDescription,
+            updatedAt: now,
+          },
+        },
+        actions: [
+          ...state.actions,
+          {
+            id: nextActionId(state),
+            treeId: state.treeId,
+            type: "edit_node",
+            nodeId: node.id,
+            previousTitle: node.title,
+            previousDescription: node.description,
+            nextTitle,
+            nextDescription,
+            createdAt: now,
+          },
+        ],
+      };
+    }
+
     case "replace_state": {
       return reducerAction.state;
     }
@@ -433,6 +487,26 @@ export function ideaTreeReducer(
             [node.id]: {
               ...node,
               status: "parked",
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        };
+      }
+
+      if (action.type === "edit_node") {
+        const node = state.nodes[action.nodeId];
+        if (!node) return { ...state, actions };
+
+        return {
+          ...state,
+          title: node.id === state.rootNodeId ? action.previousTitle : state.title,
+          actions,
+          nodes: {
+            ...state.nodes,
+            [node.id]: {
+              ...node,
+              title: action.previousTitle,
+              description: action.previousDescription,
               updatedAt: new Date().toISOString(),
             },
           },

@@ -92,6 +92,14 @@ const BrainstormActionPayloadSchema: z.ZodType<BrainstormAction> = z.discriminat
     nodeId: z.string().min(1),
   }).strict(),
   BrainstormActionBaseSchema.extend({
+    type: z.literal("edit_node"),
+    nodeId: z.string().min(1),
+    previousTitle: z.string().min(1),
+    previousDescription: z.string().optional(),
+    nextTitle: z.string().min(1),
+    nextDescription: z.string().optional(),
+  }).strict(),
+  BrainstormActionBaseSchema.extend({
     type: z.literal("create_clear_version"),
     clearVersionId: z.string().min(1),
   }).strict(),

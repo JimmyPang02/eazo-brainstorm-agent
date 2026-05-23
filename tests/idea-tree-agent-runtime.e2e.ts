@@ -161,3 +161,45 @@ test("shows merge suggestion cards without deleting nodes", async ({ page }) => 
   await expect(page.getByText("树状思考伙伴")).toBeVisible();
   await expect(page.getByRole("button", { name: "节点只承载短想法片段" })).toBeVisible();
 });
+
+test("accepts node edit suggestions only after the user confirms", async ({ page }) => {
+  await page.route("**/api/agent/run", async (route) => {
+    const request = route.request().postDataJSON() as {
+      focusedNodeId?: string;
+      state: { rootNodeId: string };
+    };
+
+    await route.fulfill({
+      json: {
+        ok: true,
+        response: {
+          message: "我先给一个更短的表达建议。",
+          operations: [
+            {
+              type: "propose_node_edit",
+              nodeId: request.focusedNodeId ?? request.state.rootNodeId,
+              title: "树状 brainstorm 伙伴",
+              description: "用树记录发散、剪枝和阶段性清晰。",
+              reason: "更短，也更贴近当前方向。",
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "命名方向" }).click();
+
+  await expect(page.getByText("改写建议")).toBeVisible();
+  await expect(page.getByRole("button", { name: "树状 brainstorm 伙伴" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "接受建议" }).click();
+
+  await expect(page.getByRole("button", { name: "树状 brainstorm 伙伴" })).toBeVisible();
+
+  await page.getByRole("button", { name: "撤销" }).click();
+
+  await expect(page.getByRole("button", { name: "树状 brainstorm 伙伴" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "用一棵树表达想法如何发散和修剪" })).toBeVisible();
+});

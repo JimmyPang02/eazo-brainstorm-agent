@@ -27,6 +27,7 @@ export function ContextChatPanel({
   onFollowFocused,
   onParkFocused,
   onCreateClearVersion,
+  onAcceptNodeEdit,
 }: {
   currentDirection: IdeaNode | null;
   focusedNode: IdeaNode | null;
@@ -44,6 +45,7 @@ export function ContextChatPanel({
   onFollowFocused: () => void;
   onParkFocused: () => void;
   onCreateClearVersion: () => void;
+  onAcceptNodeEdit: (card: Extract<AgentContextCard, { type: "node_edit_suggestion" }>) => void;
 }) {
   const [message, setMessage] = useState("");
 
@@ -111,7 +113,11 @@ export function ContextChatPanel({
         )}
 
         {agentCards.map((card, index) => (
-          <AgentCard key={`${card.type}-${index}`} card={card} />
+          <AgentCard
+            key={`${card.type}-${index}`}
+            card={card}
+            onAcceptNodeEdit={onAcceptNodeEdit}
+          />
         ))}
 
         <section className="rounded-2xl border border-[#3440371a] bg-white p-4">
@@ -228,7 +234,13 @@ export function ContextChatPanel({
   );
 }
 
-function AgentCard({ card }: { card: AgentContextCard }) {
+function AgentCard({
+  card,
+  onAcceptNodeEdit,
+}: {
+  card: AgentContextCard;
+  onAcceptNodeEdit: (card: Extract<AgentContextCard, { type: "node_edit_suggestion" }>) => void;
+}) {
   if (card.type === "followup") {
     return (
       <section className="rounded-2xl border border-[#b6724238] bg-[#fff7ee] p-4">
@@ -292,6 +304,13 @@ function AgentCard({ card }: { card: AgentContextCard }) {
         <p className="mt-2 text-xs leading-relaxed text-[#53645a]">{card.description}</p>
       )}
       <p className="mt-2 text-xs leading-relaxed text-[#667168]">{card.reason}</p>
+      <button
+        type="button"
+        onClick={() => onAcceptNodeEdit(card)}
+        className="mt-3 rounded-full bg-[#355f49] px-3 py-2 text-xs font-semibold text-white"
+      >
+        接受建议
+      </button>
     </section>
   );
 }

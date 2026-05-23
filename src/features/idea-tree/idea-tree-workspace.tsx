@@ -258,6 +258,19 @@ export function IdeaTreeWorkspace() {
     setSeedThought("");
   }
 
+  function handleAcceptNodeEdit(
+    card: Extract<AgentContextCard, { type: "node_edit_suggestion" }>,
+  ) {
+    dispatch({
+      type: "edit_node",
+      nodeId: card.nodeId,
+      title: card.title,
+      description: card.description,
+    });
+    setAgentCards((cards) => cards.filter((item) => item !== card));
+    setFocusedNodeId(card.nodeId);
+  }
+
   return (
     <main className="grid h-screen grid-cols-[minmax(0,1fr)_360px] overflow-hidden bg-[#f5f2ea] text-[#1d2520]">
       <section
@@ -333,6 +346,7 @@ export function IdeaTreeWorkspace() {
         onFollowFocused={() => focusedNode && handleFollow(focusedNode.id)}
         onParkFocused={() => focusedNode && handlePark(focusedNode.id)}
         onCreateClearVersion={() => void runAgent("基于当前方向和已经放一边的想法，生成一版阶段性的清晰版本。")}
+        onAcceptNodeEdit={handleAcceptNodeEdit}
       />
 
       {clearOpen && (
