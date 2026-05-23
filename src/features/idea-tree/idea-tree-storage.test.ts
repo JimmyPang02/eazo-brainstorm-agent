@@ -4,6 +4,7 @@ import { IDBKeyRange, indexedDB } from "fake-indexeddb";
 import {
   createInitialIdeaTreeState,
   getActiveNodes,
+  getIdeaEdges,
   ideaTreeReducer,
 } from "./idea-tree-reducer";
 import {
@@ -69,6 +70,9 @@ describe("idea tree IndexedDB storage", () => {
     expect(loaded?.currentDirectionNodeId).toBe(natural.id);
     expect(loaded?.basketNodeIds).toEqual([utility.id]);
     expect(Object.values(loaded?.nodes ?? {}).map((node) => node.title)).toContain("偏自然意象");
+    expect(getIdeaEdges(loaded!).map((edge) => [edge.parentNodeId, edge.childNodeId])).toEqual(
+      getIdeaEdges(state).map((edge) => [edge.parentNodeId, edge.childNodeId]),
+    );
     expect(loaded?.actions.map((action) => action.type)).toEqual([
       "grow_from_node",
       "follow_direction",

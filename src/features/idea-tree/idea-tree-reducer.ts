@@ -15,6 +15,15 @@ export type IdeaNode = {
   updatedAt: string;
 };
 
+export type IdeaEdge = {
+  id: string;
+  treeId: string;
+  parentNodeId: string;
+  childNodeId: string;
+  source: IdeaNodeSource;
+  createdAt: string;
+};
+
 export type BrainstormAction =
   | {
       id: string;
@@ -91,6 +100,7 @@ export type IdeaTreeState = {
   focusedNodeId: string;
   currentDirectionNodeId: string | null;
   nodes: Record<string, IdeaNode>;
+  edges: Record<string, IdeaEdge>;
   basketNodeIds: string[];
   actions: BrainstormAction[];
   agentRuns: AgentRun[];
@@ -146,6 +156,7 @@ export function createInitialIdeaTreeState(treeId: string, title: string): IdeaT
     actions: [],
     agentRuns: [],
     clearVersions: [],
+    edges: {},
     nodes: {
       [rootNodeId]: {
         id: rootNodeId,
@@ -196,6 +207,14 @@ export function ideaTreeReducer(
           updatedAt: now,
         };
       });
+      const createdEdges = createdNodes.map((node) => ({
+        id: `${node.id}:edge`,
+        treeId: state.treeId,
+        parentNodeId: parent.id,
+        childNodeId: node.id,
+        source: reducerAction.source,
+        createdAt: now,
+      }));
 
       return {
         ...state,
@@ -203,6 +222,10 @@ export function ideaTreeReducer(
         nodes: {
           ...state.nodes,
           ...Object.fromEntries(createdNodes.map((node) => [node.id, node])),
+        },
+        edges: {
+          ...state.edges,
+          ...Object.fromEntries(createdEdges.map((edge) => [edge.id, edge])),
         },
         actions: [
           ...state.actions,
@@ -354,9 +377,16 @@ export function ideaTreeReducer(
         const nodes = Object.fromEntries(
           Object.entries(state.nodes).filter(([id]) => !idsToRemove.has(id)),
         );
+        const edges = Object.fromEntries(
+          Object.entries(state.edges).filter(
+            ([, edge]) =>
+              !idsToRemove.has(edge.parentNodeId) && !idsToRemove.has(edge.childNodeId),
+          ),
+        );
         return {
           ...state,
           nodes,
+          edges,
           actions,
           focusedNodeId: action.nodeId,
           currentDirectionNodeId:
@@ -476,6 +506,10 @@ export function ideaTreeReducer(
 
 export function getActiveNodes(state: IdeaTreeState): IdeaNode[] {
   return Object.values(state.nodes).filter((node) => node.status !== "parked");
+}
+
+export function getIdeaEdges(state: IdeaTreeState): IdeaEdge[] {
+  return Object.values(state.edges);
 }
 
 export function getParkedNodes(state: IdeaTreeState): IdeaNode[] {

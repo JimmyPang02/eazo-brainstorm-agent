@@ -4,6 +4,7 @@ import {
   canGenerateClearVersion,
   createInitialIdeaTreeState,
   getActiveNodes,
+  getIdeaEdges,
   getParkedNodes,
   ideaTreeReducer,
 } from "./idea-tree-reducer";
@@ -24,12 +25,17 @@ describe("ideaTreeReducer", () => {
     });
 
     const children = getActiveNodes(next).filter((node) => node.parentId === state.rootNodeId);
+    const edges = getIdeaEdges(next);
     expect(children).toHaveLength(3);
     expect(children.map((node) => node.title)).toEqual([
       "从嘉宾故事切入",
       "从行业变化切入",
       "从反常识问题切入",
     ]);
+    expect(edges).toHaveLength(3);
+    expect(edges.map((edge) => [edge.parentNodeId, edge.childNodeId])).toEqual(
+      children.map((child) => [state.rootNodeId, child.id]),
+    );
     expect(next.actions.at(-1)?.type).toBe("grow_from_node");
   });
 
@@ -126,6 +132,7 @@ describe("ideaTreeReducer", () => {
 
     expect(Object.values(undone.nodes).map((node) => node.title)).not.toContain("自然意象");
     expect(Object.values(undone.nodes).map((node) => node.title)).not.toContain("工具感");
+    expect(getIdeaEdges(undone)).toHaveLength(0);
     expect(undone.actions).toHaveLength(0);
     expect(undone.focusedNodeId).toBe(state.rootNodeId);
   });

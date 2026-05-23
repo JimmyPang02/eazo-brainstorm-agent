@@ -13,6 +13,7 @@ import {
   type BrainstormAction,
   type AgentRun,
   type ClearVersion,
+  type IdeaEdge,
   type IdeaNode,
   type IdeaTreeState,
 } from "./idea-tree-reducer";
@@ -45,6 +46,17 @@ const IdeaNodePayloadSchema: z.ZodType<IdeaNode> = z
     y: z.number(),
     createdAt: z.string().min(1),
     updatedAt: z.string().min(1),
+  })
+  .strict();
+
+const IdeaEdgePayloadSchema: z.ZodType<IdeaEdge> = z
+  .object({
+    id: z.string().min(1),
+    treeId: z.string().min(1),
+    parentNodeId: z.string().min(1),
+    childNodeId: z.string().min(1),
+    source: z.enum(["user", "ai"]),
+    createdAt: z.string().min(1),
   })
   .strict();
 
@@ -118,6 +130,7 @@ const IdeaTreeStatePayloadSchema: z.ZodType<IdeaTreeState> = z
     focusedNodeId: z.string().min(1),
     currentDirectionNodeId: z.string().min(1).nullable(),
     nodes: z.record(z.string(), IdeaNodePayloadSchema),
+    edges: z.record(z.string(), IdeaEdgePayloadSchema),
     basketNodeIds: z.array(z.string()).max(80),
     actions: z.array(BrainstormActionPayloadSchema).max(120),
     agentRuns: z.array(AgentRunPayloadSchema).max(80),
@@ -150,6 +163,13 @@ type ContextNode = {
   source: IdeaNode["source"];
 };
 
+type ContextEdge = {
+  id: string;
+  parentNodeId: string;
+  childNodeId: string;
+  source: IdeaEdge["source"];
+};
+
 export function buildBrainstormAgentContext(request: BrainstormAgentRunRequest) {
   const focusedNodeId = request.focusedNodeId ?? request.state.focusedNodeId;
   const focusedNode = request.state.nodes[focusedNodeId] ?? null;
@@ -169,6 +189,7 @@ export function buildBrainstormAgentContext(request: BrainstormAgentRunRequest) 
     focusedNode: focusedNode ? toContextNode(focusedNode) : null,
     currentDirection: currentDirection ? toContextNode(currentDirection) : null,
     activeNodes: getActiveNodes(request.state).map(toContextNode),
+    edges: getContextEdges(request.state),
     ideaBasket: getParkedNodes(request.state).map(toContextNode),
     recentActions: request.state.actions.slice(-8),
     recentAgentRuns: request.state.agentRuns.slice(-6),
@@ -232,6 +253,21 @@ export async function runBrainstormAgent({
   return normalizeBrainstormAgentResponse(
     BrainstormAgentModelResponseSchema.parse(response.output_parsed),
   );
+}
+
+function getContextEdges(state: IdeaTreeState): ContextEdge[] {
+  return Object.values(state.edges)
+    .filter((edge) => {
+      const parent = state.nodes[edge.parentNodeId];
+      const child = state.nodes[edge.childNodeId];
+      return parent?.status !== "parked" && child?.status !== "parked";
+    })
+    .map((edge) => ({
+      id: edge.id,
+      parentNodeId: edge.parentNodeId,
+      childNodeId: edge.childNodeId,
+      source: edge.source,
+    }));
 }
 
 function toContextNode(node: IdeaNode): ContextNode {

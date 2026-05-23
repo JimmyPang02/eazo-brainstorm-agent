@@ -4,6 +4,7 @@ import type {
   AgentRun,
   BrainstormAction,
   ClearVersion,
+  IdeaEdge,
   IdeaNode,
   IdeaTreeState,
 } from "./idea-tree-reducer";
@@ -21,6 +22,7 @@ type StoredIdeaTree = {
 export class IdeaTreeDatabase extends Dexie {
   trees!: Table<StoredIdeaTree, string>;
   nodes!: Table<IdeaNode, string>;
+  edges!: Table<IdeaEdge, string>;
   actions!: Table<BrainstormAction, string>;
   agentRuns!: Table<AgentRun, string>;
   clearVersions!: Table<ClearVersion, string>;
@@ -38,6 +40,15 @@ export class IdeaTreeDatabase extends Dexie {
     this.version(2).stores({
       trees: "treeId, updatedAt",
       nodes: "id, treeId, parentId, status, updatedAt",
+      actions: "id, treeId, type, createdAt",
+      agentRuns: "id, treeId, createdAt",
+      clearVersions: "id, treeId, createdAt",
+    });
+
+    this.version(3).stores({
+      trees: "treeId, updatedAt",
+      nodes: "id, treeId, parentId, status, updatedAt",
+      edges: "id, treeId, parentNodeId, childNodeId, createdAt",
       actions: "id, treeId, type, createdAt",
       agentRuns: "id, treeId, createdAt",
       clearVersions: "id, treeId, createdAt",
@@ -65,10 +76,11 @@ export async function saveIdeaTreeState(
 
   await db.transaction(
     "rw",
-    [db.trees, db.nodes, db.actions, db.agentRuns, db.clearVersions],
+    [db.trees, db.nodes, db.edges, db.actions, db.agentRuns, db.clearVersions],
     async () => {
       await db.trees.put(treeRecord);
       await replaceTreeRows(db.nodes, state.treeId, Object.values(state.nodes));
+      await replaceTreeRows(db.edges, state.treeId, Object.values(state.edges));
       await replaceTreeRows(db.actions, state.treeId, state.actions);
       await replaceTreeRows(db.agentRuns, state.treeId, state.agentRuns);
       await replaceTreeRows(db.clearVersions, state.treeId, state.clearVersions);
@@ -83,12 +95,14 @@ export async function loadIdeaTreeState(
   const tree = await db.trees.get(treeId);
   if (!tree) return null;
 
-  const [nodes, actions, agentRuns, clearVersions] = await Promise.all([
+  const [nodes, edges, actions, agentRuns, clearVersions] = await Promise.all([
     db.nodes.where("treeId").equals(treeId).toArray(),
+    db.edges.where("treeId").equals(treeId).toArray(),
     db.actions.where("treeId").equals(treeId).sortBy("createdAt"),
     db.agentRuns.where("treeId").equals(treeId).sortBy("createdAt"),
     db.clearVersions.where("treeId").equals(treeId).sortBy("createdAt"),
   ]);
+  const restoredEdges = edges.length > 0 ? edges : deriveIdeaEdgesFromNodes(treeId, nodes);
 
   return {
     treeId: tree.treeId,
@@ -98,6 +112,7 @@ export async function loadIdeaTreeState(
     currentDirectionNodeId: tree.currentDirectionNodeId,
     basketNodeIds: tree.basketNodeIds,
     nodes: Object.fromEntries(nodes.map((node) => [node.id, node])),
+    edges: Object.fromEntries(restoredEdges.map((edge) => [edge.id, edge])),
     actions,
     agentRuns,
     clearVersions,
@@ -113,4 +128,17 @@ async function replaceTreeRows<T extends { id: string; treeId: string }>(
   if (rows.length > 0) {
     await table.bulkPut(rows);
   }
+}
+
+function deriveIdeaEdgesFromNodes(treeId: string, nodes: IdeaNode[]): IdeaEdge[] {
+  return nodes
+    .filter((node) => node.parentId)
+    .map((node) => ({
+      id: `${node.id}:edge`,
+      treeId,
+      parentNodeId: node.parentId!,
+      childNodeId: node.id,
+      source: node.source,
+      createdAt: node.createdAt,
+    }));
 }
