@@ -3,6 +3,11 @@
 import { useState } from "react";
 
 import type { AgentContextCard } from "./apply-agent-operations";
+import {
+  BRAINSTORM_QUICK_ACTIONS,
+  buildBrainstormQuickActionRequest,
+  type BrainstormQuickAction,
+} from "./brainstorm-quick-actions";
 import type { IdeaNode } from "./idea-tree-reducer";
 
 export function ContextChatPanel({
@@ -47,6 +52,17 @@ export function ContextChatPanel({
     if (!trimmed || agentLoading) return;
     onAskAgent(trimmed, shouldAllowWebSearch(trimmed));
     setMessage("");
+  }
+
+  function handleQuickAction(action: BrainstormQuickAction) {
+    if (agentLoading) return;
+    const request = buildBrainstormQuickActionRequest(action.id, {
+      focusedNodeTitle: focusedNode?.title ?? null,
+      currentDirectionTitle: currentDirection?.title ?? null,
+      parkedNodeCount: parkedNodes.length,
+    });
+
+    onAskAgent(request.userMessage, request.allowWebSearch);
   }
 
   return (
@@ -97,6 +113,24 @@ export function ContextChatPanel({
         {agentCards.map((card, index) => (
           <AgentCard key={`${card.type}-${index}`} card={card} />
         ))}
+
+        <section className="rounded-2xl border border-[#3440371a] bg-white p-4">
+          <h3 className="text-sm font-semibold">思考动作</h3>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {BRAINSTORM_QUICK_ACTIONS.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                onClick={() => handleQuickAction(action)}
+                disabled={agentLoading}
+                title={action.description}
+                className="rounded-xl border border-[#3440371a] bg-[#f8f6ef] px-3 py-2 text-left text-xs font-medium text-[#38443c] transition hover:bg-[#eef4e8] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        </section>
 
         {focusedNode && focusedNode.status !== "parked" && (
           <section className="rounded-2xl border border-[#b6724238] bg-[#fff7ee] p-4">

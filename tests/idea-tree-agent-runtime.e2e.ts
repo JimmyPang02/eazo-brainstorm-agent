@@ -79,3 +79,44 @@ test("lets the user cancel an in-flight agent run", async ({ page }) => {
   await expect(page.getByText("已取消这次 AI 操作。")).toBeVisible();
   await expect(page.getByRole("button", { name: "取消后不应出现" })).toHaveCount(0);
 });
+
+test("sends similar-case quick actions as web research requests", async ({ page }) => {
+  type CapturedQuickActionRequest = {
+    allowWebSearch: boolean;
+    userMessage: string;
+    focusedNodeId?: string;
+    state: { rootNodeId: string };
+  };
+  const capturedRequest: { current: CapturedQuickActionRequest | null } = { current: null };
+
+  await page.route("**/api/agent/run", async (route) => {
+    const request = route.request().postDataJSON() as CapturedQuickActionRequest;
+    capturedRequest.current = request;
+
+    await route.fulfill({
+      json: {
+        ok: true,
+        response: {
+          message: "我会先找可借鉴的相似案例。",
+          operations: [
+            {
+              type: "ask_followup",
+              nodeId: request.focusedNodeId ?? request.state.rootNodeId,
+              question: "你更想参考产品、内容还是活动案例？",
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "找相似案例" }).click();
+
+  await expect.poll(() => capturedRequest.current?.allowWebSearch).toBe(true);
+  const userMessage = capturedRequest.current?.userMessage ?? "";
+  expect(userMessage).toContain("网络调研");
+  expect(userMessage).toContain("相似案例");
+  expect(userMessage).toContain("不要生成 PRD");
+  await expect(page.getByText("你更想参考产品、内容还是活动案例？")).toBeVisible();
+});
