@@ -243,19 +243,6 @@ export function IdeaTreeWorkspace() {
     void runAgent(request.userMessage, request.allowWebSearch);
   }
 
-  function handleAcceptNodeEdit(
-    card: Extract<AgentContextCard, { type: "node_edit_suggestion" }>,
-  ) {
-    dispatch({
-      type: "edit_node",
-      nodeId: card.nodeId,
-      title: card.title,
-      description: card.description,
-    });
-    setAgentCards((cards) => cards.filter((item) => item !== card));
-    setFocusedNodeId(card.nodeId);
-  }
-
   return (
     <main className="grid h-screen grid-cols-1 overflow-hidden bg-[#f5f2ea] text-[#1d2520]">
       <section
